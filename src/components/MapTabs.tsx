@@ -26,7 +26,7 @@ export function MapTabs({ count, active, onChange, label }: Props) {
         </button>
       ))}
       {label && (
-        <span className="ml-auto self-center px-3 text-[13px] text-gray-500">{label}</span>
+        <span className="ml-auto self-center px-3 text-[13px] text-green-500">{label}</span>
       )}
     </div>
   )

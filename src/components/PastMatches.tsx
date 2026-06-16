@@ -8,7 +8,7 @@ import { StateMessage } from './StateMessage'
 import { TeamLogo } from './TeamLogo'
 
 interface Props {
-  onSelect: (matchId: number, mapLabel?: string) => void
+  onSelect: (matchIds: number[], index: number) => void
 }
 
 function PastCardBody({ match }: { match: ProMatch }) {
@@ -20,7 +20,6 @@ function PastCardBody({ match }: { match: ProMatch }) {
     <>
       <div className="flex items-center justify-between gap-4">
         <span className={`flex min-w-0 flex-1 items-center gap-1.5 truncate text-[16px] font-medium ${radiantWon ? winnerCls : loserCls}`}>
-          {radiantWon ? '▸' : ''}
           <TeamLogo teamId={match.radiant_team_id} name={match.radiant_name} />
           <span className="truncate">{match.radiant_name || 'Radiant'}</span>
         </span>
@@ -30,7 +29,6 @@ function PastCardBody({ match }: { match: ProMatch }) {
         <span className={`flex min-w-0 flex-1 items-center justify-end gap-1.5 truncate text-[16px] font-medium ${radiantWon ? loserCls : winnerCls}`}>
           <span className="truncate">{match.dire_name || 'Dire'}</span>
           <TeamLogo teamId={match.dire_team_id} name={match.dire_name} />
-          {radiantWon ? '' : '◂'}
         </span>
       </div>
       <div className="mt-2 text-[13px] text-gray-500">
@@ -57,6 +55,13 @@ function seriesResult(games: ProMatch[]) {
   const needed = games[0].series_type === 2 ? 3 : games[0].series_type === 1 ? 2 : 1
   const winner = aWins >= needed ? 'a' : bWins >= needed ? 'b' : null
   return { a, b, aWins, bWins, winner }
+}
+
+// Plain-text counterpart of seriesLabelNode, for the match detail map tabs.
+function seriesLabelText(games: ProMatch[]): string {
+  const { a, b, aWins, bWins, winner } = seriesResult(games)
+  if (winner) return `MW: ${winner === 'a' ? a.name : b.name}`
+  return `${aWins} - ${bWins} · ${seriesLabel(games[0].series_type)}`
 }
 
 // "MW: <winner>" once the series is decided, otherwise the running score + Bo.
@@ -95,8 +100,10 @@ function SeriesCard({ games, onSelect }: { games: ProMatch[]; onSelect: Props['o
       )}
       <button
         type="button"
-        onClick={() => onSelect(match.match_id, isSeries ? `Map ${active + 1}` : undefined)}
-        className="block w-full p-4 text-left hover:bg-black/5 dark:hover:bg-white/5"
+        onClick={() =>
+          onSelect(games.map((g) => g.match_id), active, isSeries ? seriesLabelText(games) : undefined)
+        }
+        className="block w-full p-6 text-left hover:bg-black/5 dark:hover:bg-white/5"
       >
         <PastCardBody match={match} />
       </button>

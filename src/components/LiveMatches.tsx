@@ -11,7 +11,7 @@ import { TeamLogo } from './TeamLogo'
 const POLL_MS = 20_000
 
 interface Props {
-  onSelect: (matchId: number, mapLabel?: string) => void
+  onSelect: (matchIds: number[], index: number) => void
 }
 
 // Splits the 10 players into radiant / dire using the `team` field (0 = radiant,
@@ -39,8 +39,14 @@ function LiveCardBody({ game }: { game: LiveGame }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between text-[13px] text-gray-500 dark:text-gray-400">
-        <span className="border border-black/30 px-1.5 py-0.5 font-mono tracking-wide dark:border-white/30">
-          ● LIVE {formatDuration(game.game_time)}
+        <span className="inline-flex items-center gap-1.5 border border-red-600/40 bg-red-600/5 px-1.5 py-0.5 font-mono font-medium tracking-wide text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-500">
+          <span aria-hidden className="relative inline-flex h-2.5 w-2.5">
+            {/* Radar-ping ring; hidden for users who prefer reduced motion. */}
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-600 opacity-75 motion-reduce:hidden dark:bg-red-500" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600 dark:bg-red-500" />
+          </span>
+          LIVE
+          <span className="text-gray-500 dark:text-gray-400">{formatDuration(game.game_time)}</span>
         </span>
         {game.average_mmr ? <span>{game.average_mmr} avg MMR</span> : null}
       </div>
@@ -81,7 +87,7 @@ function SeriesCard({ games, onSelect }: { games: LiveGame[]; onSelect: Props['o
       {games.length > 1 && <MapTabs count={games.length} active={active} onChange={setActive} />}
       <button
         type="button"
-        onClick={() => onSelect(game.match_id, games.length > 1 ? `Map ${active + 1}` : undefined)}
+        onClick={() => onSelect(games.map((g) => g.match_id), active)}
         className="block w-full p-4 text-left hover:bg-black/5 dark:hover:bg-white/5"
       >
         <LiveCardBody game={game} />
@@ -111,7 +117,7 @@ export function LiveMatches({ onSelect }: Props) {
   // Belt-and-braces: also drop anything already in the completed pro feed.
   const { data: completed } = useFetch(getProMatches)
   const finishedIds = new Set((completed ?? []).map((m) => m.match_id))
-  const [tier, setTier] = useState<Tier>('all')
+  const [tier, setTier] = useState<Tier>('pro')
 
   if (error) return <StateMessage message={error} onRetry={reload} />
   if (!ready || (loading && !data)) return <StateMessage message="Loading live games…" />

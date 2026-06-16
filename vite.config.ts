@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-// Served from GitHub Pages under /spotdota/, so assets must be prefixed with
-// that base. Use '/' for any root-domain or custom-domain deploy.
+// GitHub Pages serves under /spotdota/, so assets need that base there. Vercel
+// (and custom domains) serve from the root; Vercel sets VERCEL=1 at build time.
 export default defineConfig({
-  base: '/spotdota/',
+  base: process.env.VERCEL ? '/' : '/spotdota/',
   plugins: [react(), tailwindcss()],
 })

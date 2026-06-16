@@ -1,15 +1,18 @@
+import { useState } from 'react'
 import { useFetch } from '../hooks/useFetch'
 import { useAssets } from '../hooks/useAssets'
 import { getMatch, type MatchDetail as Match, type MatchPlayer } from '../lib/opendota'
 import { formatDuration, heroInfo, isRadiant, itemInfo, timeAgo } from '../lib/constants'
 import { HeroPortrait } from './HeroPortrait'
+import { MapTabs } from './MapTabs'
 import { NetWorthGraph } from './NetWorthGraph'
 import { StateMessage } from './StateMessage'
 import { TeamLogo } from './TeamLogo'
 
 interface Props {
-  matchId: number
-  mapLabel?: string // e.g. "Map 3" when opened from a multi-game series
+  matchIds: number[] // every map in the series; single entry for a standalone game
+  initialIndex: number // which map was clicked
+  label?: string // series result shown inline with the map tabs, e.g. "MW: Team Spirit"
   onClose: () => void
 }
 
@@ -106,9 +109,12 @@ function Scoreboard({ players, won, label }: { players: MatchPlayer[]; won: bool
   )
 }
 
-export function MatchDetail({ matchId, mapLabel, onClose }: Props) {
+export function MatchDetail({ matchIds, initialIndex, label, onClose }: Props) {
   useAssets()
-  const { data, loading, error, reload } = useFetch(() => getMatch(matchId))
+  const [active, setActive] = useState(initialIndex)
+  const isSeries = matchIds.length > 1
+  const matchId = matchIds[active] ?? matchIds[0]
+  const mapLabel = isSeries ? `Map ${active + 1}` : undefined
 
   return (
     <div className="fixed inset-0 z-10 overflow-y-auto bg-white dark:bg-black">
@@ -121,12 +127,28 @@ export function MatchDetail({ matchId, mapLabel, onClose }: Props) {
           ← Back
         </button>
 
-        {error && <StateMessage message={error} onRetry={reload} />}
-        {loading && !data && <StateMessage message="Loading match…" />}
+        {isSeries && (
+          <div className="border border-black/20 dark:border-white/20">
+            <MapTabs count={matchIds.length} active={active} onChange={setActive} label={label} />
+          </div>
+        )}
 
-        {data && <Detail match={data} mapLabel={mapLabel} />}
+        {/* Keyed on matchId so switching maps remounts and refetches. */}
+        <MatchView key={matchId} matchId={matchId} mapLabel={mapLabel} />
       </div>
     </div>
+  )
+}
+
+function MatchView({ matchId, mapLabel }: { matchId: number; mapLabel?: string }) {
+  const { data, loading, error, reload } = useFetch(() => getMatch(matchId))
+
+  return (
+    <>
+      {error && <StateMessage message={error} onRetry={reload} />}
+      {loading && !data && <StateMessage message="Loading match…" />}
+      {data && <Detail match={data} mapLabel={mapLabel} />}
+    </>
   )
 }
 

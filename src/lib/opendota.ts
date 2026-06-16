@@ -7,6 +7,10 @@ const BASE = 'https://api.opendota.com/api'
 const MAX_RETRIES = 2
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+// Thrown on a 404 so callers can tell "doesn't exist yet" apart from other
+// failures. A live match isn't in OpenDota's DB until it finishes.
+export class NotFoundError extends Error {}
+
 // Fetches JSON, retrying transient failures (network errors and Cloudflare 5xx
 // like 522/520/503) with exponential backoff. OpenDota intermittently times out.
 async function fetchJson<T>(path: string, attempt = 0): Promise<T> {
@@ -28,6 +32,9 @@ async function fetchJson<T>(path: string, attempt = 0): Promise<T> {
     }
     if (res.status >= 500) {
       throw new Error(`OpenDota is temporarily unavailable (${res.status}). Try again in a moment.`)
+    }
+    if (res.status === 404) {
+      throw new NotFoundError(`OpenDota ${path} not found`)
     }
     throw new Error(`OpenDota ${path} failed: ${res.status} ${res.statusText}`)
   }
@@ -141,7 +148,20 @@ export const getLive = () => fetchJson<LiveGame[]>('/live')
 export const getLeagues = () => fetchJson<League[]>('/leagues')
 export const getTeams = () => fetchJson<Team[]>('/teams')
 export const getProMatches = () => fetchJson<ProMatch[]>('/proMatches')
-export const getMatch = (id: number) => fetchJson<MatchDetail>(`/matches/${id}`)
+export const getMatch = async (id: number): Promise<MatchDetail> => {
+  try {
+    return await fetchJson<MatchDetail>(`/matches/${id}`)
+  } catch (err) {
+    // Live games aren't ingested into /matches until they finish, so a 404 here
+    // almost always means "still in progress", not "broken link".
+    if (err instanceof NotFoundError) {
+      throw new Error(
+        "Detailed stats for this match aren't available yet. They appear here once the game finishes.",
+      )
+    }
+    throw err
+  }
+}
 export const getHeroStats = () => fetchJson<HeroStat[]>('/heroStats')
 export const getItemConstants = () =>
   fetchJson<Record<string, ItemConstant>>('/constants/items')

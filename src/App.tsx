@@ -13,10 +13,15 @@ const MatchDetail = lazy(() =>
 
 function App() {
   const [tab, setTab] = useState<Tab>('live')
-  const [selected, setSelected] = useState<{ matchId: number; mapLabel?: string } | null>(null)
+  const [selected, setSelected] = useState<{
+    matchIds: number[]
+    index: number
+    label?: string
+  } | null>(null)
   const { theme, toggle } = useTheme()
 
-  const openMatch = (matchId: number, mapLabel?: string) => setSelected({ matchId, mapLabel })
+  const openMatch = (matchIds: number[], index: number, label?: string) =>
+    setSelected({ matchIds, index, label })
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-4">
@@ -53,8 +58,9 @@ function App() {
       {selected && (
         <Suspense fallback={null}>
           <MatchDetail
-            matchId={selected.matchId}
-            mapLabel={selected.mapLabel}
+            matchIds={selected.matchIds}
+            initialIndex={selected.index}
+            label={selected.label}
             onClose={() => setSelected(null)}
           />
         </Suspense>
