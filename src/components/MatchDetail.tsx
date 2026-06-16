@@ -276,13 +276,13 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
         {showNetWorth && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-[13px] font-mono">
-              <span className="text-radiant-bright">{radiantNW.toLocaleString()}</span>
+              <span className="text-radiant-bright">{radiantNW.toLocaleString()} gold</span>
               <span className="font-semibold text-fg">
                 {lead === 0
                   ? 'Even'
                   : `${lead > 0 ? match.radiant_name || 'Radiant' : match.dire_name || 'Dire'} +${Math.abs(lead).toLocaleString()}`}
               </span>
-              <span className="text-dire-bright">{direNW.toLocaleString()}</span>
+              <span className="text-dire-bright">{direNW.toLocaleString()} gold</span>
             </div>
             <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-dire">
               <div className="h-full bg-radiant" style={{ width: `${radiantShare}%` }} />
