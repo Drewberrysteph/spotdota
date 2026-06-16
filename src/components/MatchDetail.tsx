@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useFetch } from '../hooks/useFetch'
+import { useFetch, usePolling } from '../hooks/useFetch'
 import { useAssets } from '../hooks/useAssets'
-import { getMatch, type MatchDetail as Match, type MatchPlayer } from '../lib/dota'
+import { getLiveMatch, getMatch, type MatchDetail as Match, type MatchPlayer } from '../lib/dota'
 import { formatDuration, heroInfo, isRadiant, itemInfo, timeAgo } from '../lib/constants'
 import { HeroPortrait } from './HeroPortrait'
 import { MapTabs } from './MapTabs'
@@ -58,11 +58,13 @@ function Scoreboard({
   won,
   label,
   faction,
+  showResult = true,
 }: {
   players: MatchPlayer[]
   won: boolean
   label: string
   faction: 'radiant' | 'dire'
+  showResult?: boolean
 }) {
   const isRadiant = faction === 'radiant'
   const accent = isRadiant ? 'text-radiant-bright' : 'text-dire-bright'
@@ -74,13 +76,15 @@ function Scoreboard({
       <div className={`h-0.5 w-full ${topStripe}`} />
       <div className={`flex items-center justify-between px-4 py-2.5 text-[15px] ${headBg}`}>
         <span className={`font-semibold ${accent}`}>{label}</span>
-        <span
-          className={`rounded-md px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wide ${
-            won ? 'bg-radiant/15 text-radiant-bright' : 'bg-dire/15 text-dire-bright'
-          }`}
-        >
-          {won ? 'Victory' : 'Defeat'}
-        </span>
+        {showResult && (
+          <span
+            className={`rounded-md px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wide ${
+              won ? 'bg-radiant/15 text-radiant-bright' : 'bg-dire/15 text-dire-bright'
+            }`}
+          >
+            {won ? 'Victory' : 'Defeat'}
+          </span>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[14px]">
@@ -156,20 +160,40 @@ export function MatchDetail({ matchIds, matchSeqs, initialIndex, label, onClose 
         )}
 
         {/* Keyed on matchId so switching maps remounts and refetches. */}
-        <MatchView key={matchId} matchSeq={matchSeq} mapLabel={mapLabel} />
+        <MatchView key={matchId} matchId={matchId} matchSeq={matchSeq} mapLabel={mapLabel} />
       </div>
     </div>
   )
 }
 
-function MatchView({ matchSeq, mapLabel }: { matchSeq?: number; mapLabel?: string }) {
-  // Live games arrive without a seq (no detail until they finish).
+function MatchView({
+  matchId,
+  matchSeq,
+  mapLabel,
+}: {
+  matchId: number
+  matchSeq?: number
+  mapLabel?: string
+}) {
+  // No seq means a live game: show the live scoreboard, polled so it stays
+  // current. Finished maps carry a seq and fetch immutable detail by seq.
   if (matchSeq == null) {
-    return (
-      <StateMessage message="Detailed stats appear here once the game finishes." />
-    )
+    return <LiveMatchView matchId={matchId} mapLabel={mapLabel} />
   }
   return <MatchViewBySeq matchSeq={matchSeq} mapLabel={mapLabel} />
+}
+
+function LiveMatchView({ matchId, mapLabel }: { matchId: number; mapLabel?: string }) {
+  // Poll every 15s so net worth, K/D/A and items track the live game.
+  const { data, loading, error, reload } = usePolling(() => getLiveMatch(matchId), 15000)
+
+  return (
+    <>
+      {error && <StateMessage message={error} onRetry={reload} />}
+      {loading && !data && <StateMessage message="Loading live match…" />}
+      {data && <Detail match={data} mapLabel={mapLabel} />}
+    </>
+  )
 }
 
 function MatchViewBySeq({ matchSeq, mapLabel }: { matchSeq: number; mapLabel?: string }) {
@@ -188,10 +212,18 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
   const radiant = match.players.filter((p) => isRadiant(p.player_slot))
   const dire = match.players.filter((p) => !isRadiant(p.player_slot))
   const leagueName = match.league?.name
-  // /matches only returns completed games, so a boolean result means it's over.
+  // A live game has radiant_win null; a boolean means it's finished.
   const isOver = typeof match.radiant_win === 'boolean'
-  const radiantWon = isOver && match.radiant_win
-  const direWon = isOver && !match.radiant_win
+  const radiantWon = match.radiant_win === true
+  const direWon = match.radiant_win === false
+
+  // Live net-worth lead, summed from each side's hero net worth. Steam gives no
+  // per-minute timeline for live league games, so this is the current snapshot.
+  const radiantNW = radiant.reduce((sum, p) => sum + (p.net_worth ?? 0), 0)
+  const direNW = dire.reduce((sum, p) => sum + (p.net_worth ?? 0), 0)
+  const lead = radiantNW - direNW
+  const showNetWorth = !isOver && radiantNW + direNW > 0
+  const radiantShare = radiantNW + direNW > 0 ? (radiantNW / (radiantNW + direNW)) * 100 : 50
 
   return (
     <>
@@ -199,7 +231,7 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
         {/* Map label + duration / status */}
         <div className="flex items-center justify-between text-[12px]">
           <span className="font-semibold uppercase tracking-wider text-muted">
-            {mapLabel ?? 'Match'}
+            {mapLabel ?? (isOver ? 'Match' : 'Live')}
           </span>
           <span className="tnum rounded-md bg-surface-2 px-2 py-0.5 text-muted">
             {isOver ? 'Duration' : 'Game time'} {formatDuration(match.duration)}
@@ -238,10 +270,34 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
           />
         )}
 
+        {/* Live net-worth lead. No per-minute timeline exists for live league
+            games, so this shows the current snapshot: each side's total hero net
+            worth and who leads by how much. */}
+        {showNetWorth && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between text-[13px] font-mono">
+              <span className="text-radiant-bright">{radiantNW.toLocaleString()}</span>
+              <span className="font-semibold text-fg">
+                {lead === 0
+                  ? 'Even'
+                  : `${lead > 0 ? match.radiant_name || 'Radiant' : match.dire_name || 'Dire'} +${Math.abs(lead).toLocaleString()}`}
+              </span>
+              <span className="text-dire-bright">{direNW.toLocaleString()}</span>
+            </div>
+            <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-dire">
+              <div className="h-full bg-radiant" style={{ width: `${radiantShare}%` }} />
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap justify-center gap-x-3 text-[13px] text-muted">
           <span>Match {match.match_id}</span>
-          <span>·</span>
-          <span>{timeAgo(match.start_time)}</span>
+          {match.start_time > 0 && (
+            <>
+              <span>·</span>
+              <span>{timeAgo(match.start_time)}</span>
+            </>
+          )}
           {leagueName && (
             <>
               <span>·</span>
@@ -251,8 +307,8 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
         </div>
       </div>
 
-      <Scoreboard players={radiant} won={match.radiant_win} label={match.radiant_name || 'Radiant'} faction="radiant" />
-      <Scoreboard players={dire} won={!match.radiant_win} label={match.dire_name || 'Dire'} faction="dire" />
+      <Scoreboard players={radiant} won={radiantWon} label={match.radiant_name || 'Radiant'} faction="radiant" showResult={isOver} />
+      <Scoreboard players={dire} won={direWon} label={match.dire_name || 'Dire'} faction="dire" showResult={isOver} />
     </>
   )
 }

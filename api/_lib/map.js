@@ -408,6 +408,76 @@ export async function mapMatchDetail(r) {
   }
 }
 
+// Builds a live match detail from the GetLiveLeagueGames scoreboard for the game
+// with `matchId`. The scoreboard carries full per-player stats in real time, so
+// the detail view shows the same scoreboard as a finished match - minus the
+// net-worth timeline, which Steam doesn't expose for league games while live.
+// Returns a MatchDetail-shaped object with radiant_win null (game in progress).
+export async function mapLiveMatchDetail(json, matchId) {
+  const g = (json?.result?.games ?? []).find((x) => x.match_id === matchId)
+  if (!g) {
+    // Game dropped off the live feed entirely - it has finished.
+    const err = new Error('Live match not found')
+    err.notFound = true
+    throw err
+  }
+  if (!g.scoreboard) {
+    // Still listed but no scoreboard yet: drafting / hero pick / loading. Distinct
+    // from "finished" so the client can say "drafting" instead of "just ended".
+    const err = new Error('Live match not ready')
+    err.notReady = true
+    throw err
+  }
+
+  const sb = g.scoreboard
+  const sidePlayers = (side) => side?.players ?? []
+  const raw = [...sidePlayers(sb.radiant), ...sidePlayers(sb.dire)]
+  const names = await personaNames(raw)
+
+  const players = raw.map((p) => {
+    const accountId = realAccountId(p.account_id)
+    return {
+      account_id: accountId,
+      personaname: accountId != null ? (names[accountId] ?? null) : null,
+      hero_id: p.hero_id,
+      player_slot: p.player_slot,
+      kills: p.kills ?? 0,
+      deaths: p.death ?? 0, // live scoreboard uses `death` (singular)
+      assists: p.assists ?? 0,
+      last_hits: p.last_hits ?? 0,
+      denies: p.denies ?? 0,
+      net_worth: p.net_worth ?? null,
+      gold_per_min: p.gold_per_min ?? 0,
+      xp_per_min: p.xp_per_min ?? 0,
+      level: p.level ?? 0,
+      item_0: p.item0 ?? 0,
+      item_1: p.item1 ?? 0,
+      item_2: p.item2 ?? 0,
+      item_3: p.item3 ?? 0,
+      item_4: p.item4 ?? 0,
+      item_5: p.item5 ?? 0,
+    }
+  })
+
+  const leagueName = g.league_id ? await resolveLeagueName(g.league_id) : null
+
+  return {
+    match_id: g.match_id,
+    radiant_win: null, // in progress
+    duration: Math.floor(sb.duration ?? 0),
+    start_time: 0,
+    radiant_score: sb.radiant?.score ?? 0,
+    dire_score: sb.dire?.score ?? 0,
+    radiant_name: g.radiant_team?.team_name ?? null,
+    dire_name: g.dire_team?.team_name ?? null,
+    radiant_team_id: g.radiant_team?.team_id ?? null,
+    dire_team_id: g.dire_team?.team_id ?? null,
+    radiant_gold_adv: null, // no live timeline for league games
+    league: g.league_id ? { name: leagueName } : null,
+    players,
+  }
+}
+
 // --- Past pro matches --------------------------------------------------------
 
 function detailToProMatch(r, label, logoMap = {}) {

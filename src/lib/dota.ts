@@ -8,8 +8,13 @@ const MAX_RETRIES = 2
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 // Thrown on a 404 so callers can tell "doesn't exist yet" apart from other
-// failures. A live match has no detail until it finishes.
+// failures. For a live game, a 404 means it dropped off the live feed (ended).
 export class NotFoundError extends Error {}
+
+// Thrown on a 425 (Too Early): a live game is listed but has no scoreboard yet
+// (drafting / hero pick / loading). Distinct from NotFoundError so the UI can
+// say "drafting" instead of "just ended".
+export class NotReadyError extends Error {}
 
 // Fetches JSON, retrying transient failures (network errors and 5xx) with
 // exponential backoff.
@@ -35,6 +40,9 @@ async function fetchJson<T>(path: string, attempt = 0): Promise<T> {
     }
     if (res.status === 404) {
       throw new NotFoundError(`${path} not found`)
+    }
+    if (res.status === 425) {
+      throw new NotReadyError(`${path} not ready`)
     }
     throw new Error(`Request ${path} failed: ${res.status} ${res.statusText}`)
   }
@@ -129,7 +137,7 @@ export interface MatchPlayer {
 
 export interface MatchDetail {
   match_id: number
-  radiant_win: boolean
+  radiant_win: boolean | null // null while a live game is still in progress
   duration: number
   start_time: number
   radiant_score: number
@@ -168,6 +176,29 @@ export const getMatch = async (seq: number): Promise<MatchDetail> => {
     if (err instanceof NotFoundError) {
       throw new Error(
         "Detailed stats for this match aren't available yet. They appear here once the game finishes.",
+        { cause: err },
+      )
+    }
+    throw err
+  }
+}
+// Live scoreboard detail (by match_id) for an in-progress league game. Built
+// from GetLiveLeagueGames server-side; radiant_win is null and there's no
+// net-worth timeline (Steam exposes none for live league games). A 404 means the
+// game dropped off the live feed (it just ended); a 425 means it's still drafting.
+export const getLiveMatch = async (matchId: number): Promise<MatchDetail> => {
+  try {
+    return await fetchJson<MatchDetail>(`/live-match?id=${matchId}`)
+  } catch (err) {
+    if (err instanceof NotReadyError) {
+      throw new Error(
+        'This game is still in the draft. Live stats appear once it starts.',
+        { cause: err },
+      )
+    }
+    if (err instanceof NotFoundError) {
+      throw new Error(
+        'This game just ended. Its full stats appear under Past Matches once Valve publishes them.',
         { cause: err },
       )
     }

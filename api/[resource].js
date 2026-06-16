@@ -5,6 +5,7 @@
 import { steamFetch, datafeedFetch } from './_lib/steam.js'
 import {
   mapLive,
+  mapLiveMatchDetail,
   mapMatchDetail,
   mapProMatches,
   fetchMatchBySeq,
@@ -41,6 +42,24 @@ export default async function handler(req, res) {
         const detail = await mapMatchDetail(match)
         cache(res, 86400, 604800) // finished matches are immutable
         return res.status(200).json(detail)
+      }
+
+      case 'live-match': {
+        // Live scoreboard detail for an in-progress league game, by match_id.
+        const id = Number(req.query.id)
+        if (!id) return res.status(400).json({ error: 'missing match id' })
+        try {
+          const detail = await mapLiveMatchDetail(
+            await steamFetch('/IDOTA2Match_570/GetLiveLeagueGames/v1/'),
+            id,
+          )
+          cache(res, 10, 20) // live data; short window like /live
+          return res.status(200).json(detail)
+        } catch (err) {
+          if (err?.notReady) return res.status(425).json({ error: 'Live match not ready' })
+          if (err?.notFound) return res.status(404).json({ error: 'Live match not found' })
+          throw err
+        }
       }
 
       case 'pro-matches': {
