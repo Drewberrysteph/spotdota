@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useFetch } from '../hooks/useFetch'
 import { useAssets } from '../hooks/useAssets'
-import { getProMatches, type ProMatch } from '../lib/opendota'
+import { getProMatches, type ProMatch } from '../lib/dota'
 import { formatDuration, groupByKey, groupSeries, seriesLabel, timeAgo } from '../lib/constants'
 import { MapTabs } from './MapTabs'
 import { StateMessage } from './StateMessage'

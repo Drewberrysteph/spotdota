@@ -1,17 +1,15 @@
 import { useState } from 'react'
-import { useFetch, usePolling } from '../hooks/useFetch'
+import { useFetch } from '../hooks/useFetch'
 import { useAssets } from '../hooks/useAssets'
-import { getLive, getProMatches, type LiveGame, type LivePlayer } from '../lib/opendota'
-import { formatDuration, groupByKey, groupSeries, leagueName } from '../lib/constants'
+import { getLive, type LiveGame, type LivePlayer, type SeriesMap } from '../lib/dota'
+import { formatDuration, groupByKey, groupSeries, seriesLabel } from '../lib/constants'
 import { HeroPortrait } from './HeroPortrait'
 import { MapTabs } from './MapTabs'
 import { StateMessage } from './StateMessage'
 import { TeamLogo } from './TeamLogo'
 
-const POLL_MS = 20_000
-
 interface Props {
-  onSelect: (matchIds: number[], index: number) => void
+  onSelect: (matchIds: number[], index: number, label?: string, matchSeqs?: number[]) => void
 }
 
 // Splits the 10 players into radiant / dire using the `team` field (0 = radiant,
@@ -48,9 +46,10 @@ function LiveCardBody({ game }: { game: LiveGame }) {
           LIVE
           <span className="text-muted">{formatDuration(game.game_time)}</span>
         </span>
-        {game.average_mmr ? (
+        {game.series_type ? (
           <span className="tnum rounded-md bg-surface-2 px-2 py-0.5 text-[12px]">
-            {game.average_mmr} avg MMR
+            {seriesLabel(game.series_type)} · {game.radiant_series_wins ?? 0}-
+            {game.dire_series_wins ?? 0}
           </span>
         ) : null}
       </div>
@@ -82,94 +81,166 @@ function LiveCardBody({ game }: { game: LiveGame }) {
   )
 }
 
-// One card per series. A multi-game series shows Map tabs; a single game shows
-// the card body directly.
+// Compact body for a completed series map shown inside a live card.
+function CompletedMapBody({ map, game }: { map: SeriesMap; game: LiveGame }) {
+  if (map.match_id === null) {
+    return <p className="py-1 text-[13px] text-muted">Stats unavailable</p>
+  }
+  const radiantWon = map.radiant_win
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-4">
+        <span className={`flex min-w-0 flex-1 items-center gap-2 truncate text-[15px] ${radiantWon === true ? 'font-semibold text-radiant-bright' : radiantWon === false ? 'font-medium text-muted' : 'font-medium text-fg'}`}>
+          <TeamLogo teamId={game.team_id_radiant} name={game.team_name_radiant} />
+          <span className="truncate">{game.team_name_radiant || 'Radiant'}</span>
+        </span>
+        <span className="tnum shrink-0 font-mono text-[22px] font-bold">
+          {map.radiant_score != null ? (
+            <>
+              <span className={radiantWon === true ? 'text-radiant-bright' : 'text-fg'}>{map.radiant_score}</span>
+              <span className="px-1 text-muted">:</span>
+              <span className={radiantWon === false ? 'text-dire-bright' : 'text-fg'}>{map.dire_score}</span>
+            </>
+          ) : (
+            <span className="text-muted text-[16px]">- : -</span>
+          )}
+        </span>
+        <span className={`flex min-w-0 flex-1 items-center justify-end gap-2 truncate text-[15px] ${radiantWon === false ? 'font-semibold text-dire-bright' : radiantWon === true ? 'font-medium text-muted' : 'font-medium text-fg'}`}>
+          <span className="truncate">{game.team_name_dire || 'Dire'}</span>
+          <TeamLogo teamId={game.team_id_dire} name={game.team_name_dire} />
+        </span>
+      </div>
+      {map.duration != null && (
+        <p className="text-[12px] text-muted">{formatDuration(map.duration)}</p>
+      )}
+    </div>
+  )
+}
+
+// Derives series score label for an in-progress live series, e.g. "1-0 · Bo3".
+function liveSeriesScoreLabel(game: LiveGame): string | null {
+  const maps = game.series_maps
+  if (!maps.length) return null
+  let radiantWins = 0
+  let direWins = 0
+  for (const m of maps) {
+    if (m.radiant_win === true) radiantWins++
+    else if (m.radiant_win === false) direWins++
+  }
+  return `${radiantWins}-${direWins} · ${seriesLabel(game.series_type ?? 0)}`
+}
+
+// One card per live game. Shows completed-map tabs when the series is in progress.
 function SeriesCard({ games, onSelect }: { games: LiveGame[]; onSelect: Props['onSelect'] }) {
-  const [active, setActive] = useState(games.length - 1) // default to latest map
-  const game = games[active] ?? games[0]
+  // Live series: games is always length 1. series_maps holds completed maps.
+  const game = games[0]
+  const seriesMaps = game.series_maps ?? []
+  const liveTabIndex = seriesMaps.length // last tab = current live game
+  const totalTabs = seriesMaps.length + 1
+  const [active, setActive] = useState(liveTabIndex)
+
+  const isLiveTab = active === liveTabIndex
+  const completedMap = !isLiveTab ? seriesMaps[active] : null
+
+  const handleClick = () => {
+    if (isLiveTab) {
+      onSelect([game.match_id], 0)
+    } else if (completedMap?.match_seq_num != null) {
+      const matchIds = seriesMaps.map((m) => m.match_id ?? game.match_id)
+      const matchSeqs = seriesMaps.map((m) => m.match_seq_num ?? 0)
+      onSelect(matchIds, active, liveSeriesScoreLabel(game) ?? undefined, matchSeqs)
+    }
+  }
+
+  const scoreLabel = seriesMaps.length > 0 ? liveSeriesScoreLabel(game) : null
 
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm transition-colors hover:border-line-strong">
-      {games.length > 1 && <MapTabs count={games.length} active={active} onChange={setActive} />}
+      {totalTabs > 1 && (
+        <MapTabs
+          count={totalTabs}
+          active={active}
+          onChange={setActive}
+          liveIndex={liveTabIndex}
+          label={scoreLabel ?? undefined}
+        />
+      )}
       <button
         type="button"
-        onClick={() => onSelect(games.map((g) => g.match_id), active)}
+        onClick={handleClick}
         className="block w-full cursor-pointer p-4 text-left transition-colors hover:bg-surface-hover"
       >
-        <LiveCardBody game={game} />
+        {isLiveTab || !completedMap ? (
+          <LiveCardBody game={game} />
+        ) : (
+          <CompletedMapBody map={completedMap} game={game} />
+        )}
       </button>
     </div>
   )
 }
 
-// A game that hasn't updated in this long has ended; /live keeps finished games
-// listed for a long time, so staleness is the reliable "still live" signal.
-const STALE_AFTER_S = 300
-
-// Tournament games (league_id > 0) are professional; everything else on /live is
-// a high-MMR public game, which we surface as amateur.
+// Every Steam live game is a league game, so the split is by registered teams:
+// games with both team ids are real pro-team matches; the rest are open /
+// qualifier games with pickup squads, which we surface as amateur.
 type Tier = 'all' | 'pro' | 'amateur'
 const TIERS: { id: Tier; label: string }[] = [
-  { id: 'all', label: 'All matches' },
+  { id: 'all', label: 'All games' },
   { id: 'pro', label: 'Professional' },
   { id: 'amateur', label: 'Amateur' },
 ]
+const isPro = (g: LiveGame) => g.team_id_radiant > 0 && g.team_id_dire > 0
 const matchesTier = (g: LiveGame, tier: Tier) =>
-  tier === 'all' || (tier === 'pro' ? g.league_id > 0 : g.league_id === 0)
+  tier === 'all' || (tier === 'pro' ? isPro(g) : !isPro(g))
 
 export function LiveMatches({ onSelect }: Props) {
   const ready = useAssets()
-  const { data, loading, error, reload } = usePolling(getLive, POLL_MS)
-  // Belt-and-braces: also drop anything already in the completed pro feed.
-  const { data: completed } = useFetch(getProMatches)
-  const finishedIds = new Set((completed ?? []).map((m) => m.match_id))
+  const { data, loading, error, reload } = useFetch(getLive)
   const [tier, setTier] = useState<Tier>('pro')
 
   if (error) return <StateMessage message={error} onRetry={reload} />
   if (!ready || (loading && !data)) return <StateMessage message="Loading live games…" />
 
-  const all = data ?? []
-  // Use the freshest update across all live games as the server clock; this
-  // avoids client/server skew and any need for an impure Date.now() call.
-  const serverNow = all.reduce((max, g) => Math.max(max, g.last_update_time || 0), 0)
-  const isLive = (g: LiveGame) =>
-    g.last_update_time > 0 && serverNow - g.last_update_time < STALE_AFTER_S
-
-  const live = all
-    .filter((g) => g.players?.length === 10 && isLive(g) && !finishedIds.has(g.match_id))
-    // Tournaments first, then by average MMR (public/high-MMR games).
-    .sort((a, b) => {
-      const byTier = (b.league_id > 0 ? 1 : 0) - (a.league_id > 0 ? 1 : 0)
-      return byTier !== 0 ? byTier : (b.average_mmr ?? 0) - (a.average_mmr ?? 0)
-    })
+  // GetLiveLeagueGames only returns games that are live right now, so no
+  // staleness filtering is needed. Drop games still drafting (no full lineup)
+  // and show the most-watched first.
+  const live = (data ?? [])
+    .filter((g) => g.players?.length === 10)
+    .sort((a, b) => (b.spectators ?? 0) - (a.spectators ?? 0))
 
   if (live.length === 0) return <StateMessage message="No live games right now." />
 
   const games = live.filter((g) => matchesTier(g, tier))
-  const groups = groupByKey(games, (g) =>
-    leagueName(g.league_id) ?? (g.league_id > 0 ? `League ${g.league_id}` : 'Public matches'),
-  )
   const tierLabel = TIERS.find((t) => t.id === tier)!.label.toLowerCase()
+  const groups = groupByKey(games, (g) => g.league_name ?? `League ${g.league_id}`)
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[13px] text-muted">
-          {games.length} {games.length === 1 ? 'game' : 'games'} live · refreshing every{' '}
-          {POLL_MS / 1000}s
+          {games.length} {games.length === 1 ? 'game' : 'games'} live
         </p>
-        <select
-          value={tier}
-          onChange={(e) => setTier(e.target.value as Tier)}
-          aria-label="Filter live games by tier"
-          className="cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1 text-[13px] font-medium text-fg transition-colors hover:border-line-strong [color-scheme:light] dark:[color-scheme:dark]"
-        >
-          {TIERS.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={tier}
+            onChange={(e) => setTier(e.target.value as Tier)}
+            aria-label="Filter live games by tier"
+            className="cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1 text-[13px] font-medium text-fg transition-colors hover:border-line-strong [color-scheme:light] dark:[color-scheme:dark]"
+          >
+            {TIERS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={reload}
+            className="cursor-pointer rounded-lg border border-line px-3 py-1 text-[13px] font-medium text-muted transition-colors hover:border-dota hover:bg-dota hover:text-white"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
       {games.length === 0 ? (
         <StateMessage message={`No ${tierLabel} games live right now.`} />

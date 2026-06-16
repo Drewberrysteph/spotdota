@@ -1,18 +1,18 @@
-// Typed client for the OpenDota public API.
-// No key required for the free tier (60 req/min, 2000/day). CORS is enabled,
-// so these run straight from the browser.
+// Client for the app's own /api backend, which proxies Valve's Dota 2 Steam
+// WebAPI (the key lives server-side). Same-origin, so no CORS. Response shapes
+// are mapped server-side into the types below, so this stays a thin fetch layer.
 
-const BASE = 'https://api.opendota.com/api'
+const BASE = '/api'
 
 const MAX_RETRIES = 2
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 // Thrown on a 404 so callers can tell "doesn't exist yet" apart from other
-// failures. A live match isn't in OpenDota's DB until it finishes.
+// failures. A live match has no detail until it finishes.
 export class NotFoundError extends Error {}
 
-// Fetches JSON, retrying transient failures (network errors and Cloudflare 5xx
-// like 522/520/503) with exponential backoff. OpenDota intermittently times out.
+// Fetches JSON, retrying transient failures (network errors and 5xx) with
+// exponential backoff.
 async function fetchJson<T>(path: string, attempt = 0): Promise<T> {
   let res: Response
   try {
@@ -31,12 +31,12 @@ async function fetchJson<T>(path: string, attempt = 0): Promise<T> {
       return fetchJson<T>(path, attempt + 1)
     }
     if (res.status >= 500) {
-      throw new Error(`OpenDota is temporarily unavailable (${res.status}). Try again in a moment.`)
+      throw new Error(`The live feed is temporarily unavailable (${res.status}). Try again in a moment.`)
     }
     if (res.status === 404) {
-      throw new NotFoundError(`OpenDota ${path} not found`)
+      throw new NotFoundError(`${path} not found`)
     }
-    throw new Error(`OpenDota ${path} failed: ${res.status} ${res.statusText}`)
+    throw new Error(`Request ${path} failed: ${res.status} ${res.statusText}`)
   }
   return res.json() as Promise<T>
 }
@@ -48,11 +48,22 @@ export interface LivePlayer {
   team: number // 0 = radiant, 1 = dire
 }
 
+export interface SeriesMap {
+  map_number: number
+  match_id: number | null
+  match_seq_num: number | null
+  radiant_score: number | null
+  dire_score: number | null
+  duration: number | null
+  radiant_win: boolean | null
+}
+
 export interface LiveGame {
   match_id: number
-  league_id: number // 0 = public/high-MMR game, > 0 = tournament
+  league_id: number // > 0 = tournament (Steam's feed is league-only)
+  league_name: string | null // resolved server-side from Valve's esports API
   series_id: number // 0 = standalone, > 0 = part of a series
-  last_update_time: number // unix seconds; stops advancing once a game ends
+  last_update_time: number // unix seconds; unused with the Steam feed (live-only)
   game_time: number
   average_mmr: number
   spectators: number
@@ -64,12 +75,16 @@ export interface LiveGame {
   team_id_radiant: number
   team_id_dire: number
   players: LivePlayer[]
+  // Series context from GetLiveLeagueGames.
+  radiant_series_wins?: number
+  dire_series_wins?: number
+  series_type?: number // 0 = Bo1, 1 = Bo3, 2 = Bo5
+  series_maps: SeriesMap[] // completed maps in this series; empty for Bo1 or first map
 }
 
 export interface ProMatch {
   match_id: number
-  // Both can come back null on the freshest games: OpenDota backfills series
-  // metadata a little after a match lands in the feed.
+  match_seq_num: number // detail is fetched by seq (GetMatchDetails by id is down)
   series_id: number | null
   series_type: number | null // 0 = Bo1, 1 = Bo3, 2 = Bo5
   duration: number
@@ -117,7 +132,7 @@ export interface MatchDetail {
   dire_name: string | null
   radiant_team_id?: number | null
   dire_team_id?: number | null
-  radiant_gold_adv?: number[] | null // net worth lead per minute (radiant - dire)
+  radiant_gold_adv?: number[] | null // null from Steam (no per-minute timeline)
   league?: { name?: string | null } | null
   players: MatchPlayer[]
 }
@@ -128,42 +143,30 @@ export interface HeroStat {
   img: string
 }
 
-// /constants/items: keyed by item name -> { id, img, dname }
+// item name -> { id, img, dname }
 export interface ItemConstant {
   id: number
   img: string
   dname?: string
 }
 
-export interface League {
-  leagueid: number
-  name: string
-}
-
-export interface Team {
-  team_id: number
-  name: string | null
-  logo_url: string | null
-}
-
 export const getLive = () => fetchJson<LiveGame[]>('/live')
-export const getLeagues = () => fetchJson<League[]>('/leagues')
-export const getTeams = () => fetchJson<Team[]>('/teams')
-export const getProMatches = () => fetchJson<ProMatch[]>('/proMatches')
-export const getMatch = async (id: number): Promise<MatchDetail> => {
+export const getProMatches = () => fetchJson<ProMatch[]>('/pro-matches')
+// Fetched by match_seq_num, not match_id: Valve's GetMatchDetails (by id) is down
+// platform-wide, so detail comes from GetMatchHistoryBySequenceNum server-side.
+// The seq comes from the past-matches feed.
+export const getMatch = async (seq: number): Promise<MatchDetail> => {
   try {
-    return await fetchJson<MatchDetail>(`/matches/${id}`)
+    return await fetchJson<MatchDetail>(`/match?seq=${seq}`)
   } catch (err) {
-    // Live games aren't ingested into /matches until they finish, so a 404 here
-    // almost always means "still in progress", not "broken link".
     if (err instanceof NotFoundError) {
       throw new Error(
         "Detailed stats for this match aren't available yet. They appear here once the game finishes.",
+        { cause: err },
       )
     }
     throw err
   }
 }
-export const getHeroStats = () => fetchJson<HeroStat[]>('/heroStats')
-export const getItemConstants = () =>
-  fetchJson<Record<string, ItemConstant>>('/constants/items')
+export const getHeroStats = () => fetchJson<HeroStat[]>('/heroes')
+export const getItemConstants = () => fetchJson<Record<string, ItemConstant>>('/items')

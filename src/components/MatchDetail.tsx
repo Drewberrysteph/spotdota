@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useFetch } from '../hooks/useFetch'
 import { useAssets } from '../hooks/useAssets'
-import { getMatch, type MatchDetail as Match, type MatchPlayer } from '../lib/opendota'
+import { getMatch, type MatchDetail as Match, type MatchPlayer } from '../lib/dota'
 import { formatDuration, heroInfo, isRadiant, itemInfo, timeAgo } from '../lib/constants'
 import { HeroPortrait } from './HeroPortrait'
 import { MapTabs } from './MapTabs'
@@ -215,13 +215,16 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
           </div>
         </div>
 
-        {/* Net worth advantage graph */}
-        <NetWorthGraph
-          data={match.radiant_gold_adv ?? []}
-          durationSeconds={match.duration}
-          radiantName={match.radiant_name}
-          direName={match.dire_name}
-        />
+        {/* Net worth advantage graph. Steam's match detail has no per-minute gold
+            timeline, so this only renders when the data is present. */}
+        {match.radiant_gold_adv && match.radiant_gold_adv.length > 0 && (
+          <NetWorthGraph
+            data={match.radiant_gold_adv}
+            durationSeconds={match.duration}
+            radiantName={match.radiant_name}
+            direName={match.dire_name}
+          />
+        )}
 
         <div className="flex flex-wrap justify-center gap-x-3 text-[13px] text-muted">
           <span>Match {match.match_id}</span>

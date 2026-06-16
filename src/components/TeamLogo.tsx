@@ -1,6 +1,3 @@
-import { useState } from 'react'
-import { teamLogo } from '../lib/constants'
-
 interface Props {
   teamId: number | null | undefined
   name?: string | null
@@ -15,24 +12,10 @@ function initials(name?: string | null): string {
   return (words[0][0] + words[1][0]).toUpperCase()
 }
 
-// Renders a team's logo, falling back to a monogram placeholder when no logo is
-// registered (or the image fails to load), so the layout stays stable.
-export function TeamLogo({ teamId, name }: Props) {
-  const url = teamLogo(teamId)
-  const [errored, setErrored] = useState(false)
-
-  if (url && !errored) {
-    return (
-      <img
-        src={url}
-        alt={name ?? ''}
-        loading="lazy"
-        className="h-[60px] w-[60px] shrink-0 object-contain"
-        onError={() => setErrored(true)}
-      />
-    )
-  }
-
+// Renders a monogram from the team name. Steam's WebAPI exposes team logos only
+// as UGC ids (not image URLs), so we no longer fetch logos; the monogram keeps
+// the layout stable. `teamId` is kept in the props for call-site compatibility.
+export function TeamLogo({ name }: Props) {
   return (
     <div
       className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-lg border border-line bg-surface-2 text-[18px] font-semibold text-muted"

@@ -1,5 +1,5 @@
 // Lazy, module-cached lookups for hero and item assets, plus small formatters.
-import { getHeroStats, getItemConstants, getLeagues, getTeams } from './opendota'
+import { getHeroStats, getItemConstants, getLeagues } from './dota'
 
 const CDN = 'https://cdn.cloudflare.steamstatic.com'
 
@@ -15,12 +15,10 @@ export interface ItemInfo {
 let heroMap: Map<number, HeroInfo> | null = null
 let itemMap: Map<number, ItemInfo> | null = null
 let leagueMap: Map<number, string> | null = null
-let teamLogoMap: Map<number, string> | null = null
 
 let heroPromise: Promise<Map<number, HeroInfo>> | null = null
 let itemPromise: Promise<Map<number, ItemInfo>> | null = null
 let leaguePromise: Promise<Map<number, string>> | null = null
-let teamPromise: Promise<Map<number, string>> | null = null
 
 export async function loadHeroes(): Promise<Map<number, HeroInfo>> {
   if (heroMap) return heroMap
@@ -69,25 +67,10 @@ export async function loadLeagues(): Promise<Map<number, string>> {
   return leaguePromise
 }
 
-export async function loadTeams(): Promise<Map<number, string>> {
-  if (teamLogoMap) return teamLogoMap
-  if (!teamPromise) {
-    teamPromise = getTeams().then((teams) => {
-      const m = new Map<number, string>()
-      for (const t of teams) {
-        if (t.logo_url) m.set(t.team_id, t.logo_url)
-      }
-      teamLogoMap = m
-      return m
-    })
-  }
-  return teamPromise
-}
-
-// Loads the asset maps together; used to gate rendering of hero/item icons,
-// tournament names, and team logos.
+// Loads the asset maps together; used to gate rendering of hero/item icons and
+// tournament names.
 export async function loadAssets() {
-  await Promise.all([loadHeroes(), loadItems(), loadLeagues(), loadTeams()])
+  await Promise.all([loadHeroes(), loadItems(), loadLeagues()])
 }
 
 export function heroInfo(id: number): HeroInfo | undefined {
@@ -99,11 +82,6 @@ export function itemInfo(id: number): ItemInfo | undefined {
 export function leagueName(id: number): string | undefined {
   return leagueMap?.get(id)
 }
-export function teamLogo(id: number | null | undefined): string | undefined {
-  if (!id) return undefined
-  return teamLogoMap?.get(id)
-}
-
 // Slot < 128 is Radiant, otherwise Dire (applies to player_slot and team_slot).
 export function isRadiant(slot: number): boolean {
   return slot < 128
