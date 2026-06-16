@@ -35,7 +35,7 @@ export function TeamLogo({ teamId, name }: Props) {
 
   return (
     <div
-      className="flex h-[60px] w-[60px] shrink-0 items-center justify-center border border-black/20 text-[18px] font-semibold text-gray-500 dark:border-white/20"
+      className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-lg border border-line bg-surface-2 text-[18px] font-semibold text-muted"
       title={name ?? undefined}
       aria-hidden="true"
     >

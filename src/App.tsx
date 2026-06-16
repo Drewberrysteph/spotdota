@@ -24,25 +24,25 @@ function App() {
     setSelected({ matchIds, index, label })
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-4">
-      <header className="flex items-center justify-between border-b border-black/15 pb-3 dark:border-white/20">
-        <div className="flex items-center gap-2">
-          <Logo className="h-12 w-12" />
-          <h1 className="text-[24px] font-bold tracking-tight">SpotDota</h1>
+    <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-5 px-4 pb-16 pt-5">
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Logo className="h-11 w-11 rounded-xl shadow-lg shadow-dota/20" />
+          <div className="leading-none">
+            <h1 className="text-[22px] font-bold tracking-tight">
+              Spot<span className="text-dota-bright">Dota</span>
+            </h1>
+            <span className="text-[12px] text-muted">Dota 2 match tracker</span>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden text-[13px] text-gray-500 sm:inline">
-            Dota 2 match tracker
-          </span>
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label="Toggle light/dark mode"
-            className="self-center border border-black/30 px-2 py-0.5 text-[13px] hover:bg-black hover:text-white dark:border-white/40 dark:hover:bg-white dark:hover:text-black"
-          >
-            {theme === 'dark' ? '☀ Light' : '☾ Dark'}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="Toggle light/dark mode"
+          className="grid h-9 w-9 cursor-pointer place-items-center rounded-lg border border-line text-[15px] text-muted transition-colors hover:border-line-strong hover:bg-surface-hover hover:text-fg"
+        >
+          {theme === 'dark' ? '☀' : '☾'}
+        </button>
       </header>
 
       <Tabs active={tab} onChange={setTab} />

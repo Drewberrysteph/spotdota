@@ -7,26 +7,29 @@ interface Props {
   label?: ReactNode // e.g. "MW: Team Spirit"
 }
 
-// Map 1 / Map 2 / ... tabs shown at the top of a multi-game series card.
+// Segmented map switcher shown at the top of a multi-game series card.
 export function MapTabs({ count, active, onChange, label }: Props) {
   return (
-    <div className="flex items-stretch border-b border-black/20 dark:border-white/20">
-      {Array.from({ length: count }, (_, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => onChange(i)}
-          className={`border-r border-black/20 px-3 py-1.5 text-[14px] dark:border-white/20 ${
-            i === active
-              ? 'bg-black text-white dark:bg-white dark:text-black'
-              : 'text-gray-500 hover:text-black dark:hover:text-white'
-          }`}
-        >
-          Map {i + 1}
-        </button>
-      ))}
+    <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-2 px-3 py-2">
+      <div className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+        {Array.from({ length: count }, (_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onChange(i)}
+            aria-pressed={i === active}
+            className={`cursor-pointer rounded-md px-3 py-1 text-[12px] font-semibold tabular-nums transition-colors ${
+              i === active
+                ? 'bg-dota text-white shadow-sm'
+                : 'text-muted hover:text-fg'
+            }`}
+          >
+            Map {i + 1}
+          </button>
+        ))}
+      </div>
       {label && (
-        <span className="ml-auto self-center px-3 text-[13px] text-green-500">{label}</span>
+        <span className="truncate text-[13px] font-medium text-radiant-bright">{label}</span>
       )}
     </div>
   )

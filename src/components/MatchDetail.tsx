@@ -33,7 +33,7 @@ function Items({ player }: { player: MatchPlayer }) {
           return (
             <div
               key={i}
-              className="h-[25px] w-[35px] border border-black/10 bg-black/5 dark:border-white/10 dark:bg-white/5"
+              className="h-[25px] w-[35px] rounded-sm border border-line bg-surface-2"
             />
           )
         }
@@ -44,7 +44,7 @@ function Items({ player }: { player: MatchPlayer }) {
             alt={info.name}
             title={info.name}
             loading="lazy"
-            className="h-[25px] w-[35px] border border-black/10 object-cover dark:border-white/10"
+            className="h-[25px] w-[35px] rounded-sm border border-line object-cover"
           />
         )
       })}
@@ -52,52 +52,72 @@ function Items({ player }: { player: MatchPlayer }) {
   )
 }
 
-function Scoreboard({ players, won, label }: { players: MatchPlayer[]; won: boolean; label: string }) {
+function Scoreboard({
+  players,
+  won,
+  label,
+  faction,
+}: {
+  players: MatchPlayer[]
+  won: boolean
+  label: string
+  faction: 'radiant' | 'dire'
+}) {
+  const isRadiant = faction === 'radiant'
+  const accent = isRadiant ? 'text-radiant-bright' : 'text-dire-bright'
+  const headBg = isRadiant ? 'bg-radiant/10' : 'bg-dire/10'
+  const topStripe = isRadiant ? 'bg-radiant' : 'bg-dire'
+
   return (
-    <div className="border border-black/20 dark:border-white/20">
-      <div className="flex items-center justify-between border-b border-black/20 px-3 py-2 text-[15px] dark:border-white/20">
-        <span className="font-semibold">{label}</span>
-        <span className={won ? 'text-black dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
+    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+      <div className={`h-0.5 w-full ${topStripe}`} />
+      <div className={`flex items-center justify-between px-4 py-2.5 text-[15px] ${headBg}`}>
+        <span className={`font-semibold ${accent}`}>{label}</span>
+        <span
+          className={`rounded-md px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wide ${
+            won ? 'bg-radiant/15 text-radiant-bright' : 'bg-dire/15 text-dire-bright'
+          }`}
+        >
           {won ? 'Victory' : 'Defeat'}
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[14px]">
           <thead>
-            <tr className="text-[12px] uppercase tracking-wide text-gray-500">
-              <th className="px-2 py-1 text-left font-normal">Hero</th>
-              <th className="px-2 py-1 text-left font-normal">Player</th>
-              <th className="px-2 py-1 text-right font-normal">Lvl</th>
-              <th className="px-2 py-1 text-right font-normal">K/D/A</th>
-              <th className="px-2 py-1 text-right font-normal">LH/DN</th>
-              <th className="px-2 py-1 text-right font-normal">Net</th>
-              <th className="px-2 py-1 text-right font-normal">GPM/XPM</th>
-              <th className="px-2 py-1 text-left font-normal">Items</th>
+            <tr className="border-b border-line text-[11px] uppercase tracking-wider text-muted">
+              <th className="px-2 py-2 text-left font-medium">Hero</th>
+              <th className="px-2 py-2 text-left font-medium">Player</th>
+              <th className="px-2 py-2 text-right font-medium">Lvl</th>
+              <th className="px-2 py-2 text-right font-medium">K/D/A</th>
+              <th className="px-2 py-2 text-right font-medium">LH/DN</th>
+              <th className="px-2 py-2 text-right font-medium">Net</th>
+              <th className="px-2 py-2 text-right font-medium">GPM/XPM</th>
+              <th className="px-2 py-2 text-left font-medium">Items</th>
             </tr>
           </thead>
           <tbody>
             {players.map((p, i) => (
-              <tr key={i} className="border-t border-black/10 dark:border-white/10">
-                <td className="px-2 py-1">
+              <tr key={i} className="border-t border-line transition-colors hover:bg-surface-hover">
+                <td className="px-2 py-1.5">
                   <HeroPortrait heroId={p.hero_id} size="sm" />
                 </td>
-                <td className="max-w-[12rem] truncate px-2 py-1">
+                <td className="max-w-[12rem] truncate px-2 py-1.5 font-medium">
                   {p.personaname || heroInfo(p.hero_id)?.name || 'Anonymous'}
                 </td>
-                <td className="px-2 py-1 text-right">{p.level}</td>
-                <td className="px-2 py-1 text-right font-mono">
+                <td className="tnum px-2 py-1.5 text-right">{p.level}</td>
+                <td className="tnum px-2 py-1.5 text-right font-mono">
                   {p.kills}/{p.deaths}/{p.assists}
                 </td>
-                <td className="px-2 py-1 text-right font-mono">
+                <td className="tnum px-2 py-1.5 text-right font-mono text-muted">
                   {p.last_hits}/{p.denies}
                 </td>
-                <td className="px-2 py-1 text-right font-mono">
+                <td className="tnum px-2 py-1.5 text-right font-mono font-semibold text-str">
                   {(p.net_worth ?? 0).toLocaleString()}
                 </td>
-                <td className="px-2 py-1 text-right font-mono text-gray-500 dark:text-gray-400">
+                <td className="tnum px-2 py-1.5 text-right font-mono text-muted">
                   {p.gold_per_min}/{p.xp_per_min}
                 </td>
-                <td className="px-2 py-1">
+                <td className="px-2 py-1.5">
                   <Items player={p} />
                 </td>
               </tr>
@@ -117,18 +137,18 @@ export function MatchDetail({ matchIds, initialIndex, label, onClose }: Props) {
   const mapLabel = isSeries ? `Map ${active + 1}` : undefined
 
   return (
-    <div className="fixed inset-0 z-10 overflow-y-auto bg-white dark:bg-black">
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4">
+    <div className="fixed inset-0 z-10 overflow-y-auto bg-[#fafafb] dark:bg-[#0a0b0e]">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4 px-4 pb-16 pt-5">
         <button
           type="button"
           onClick={onClose}
-          className="self-start border border-black/40 px-3 py-1 text-[14px] hover:bg-black hover:text-white dark:border-white/40 dark:hover:bg-white dark:hover:text-black"
+          className="inline-flex w-fit cursor-pointer items-center gap-1.5 self-start rounded-lg border border-line px-3 py-1.5 text-[14px] font-medium text-muted transition-colors hover:border-line-strong hover:bg-surface-hover hover:text-fg"
         >
           ← Back
         </button>
 
         {isSeries && (
-          <div className="border border-black/20 dark:border-white/20">
+          <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <MapTabs count={matchIds.length} active={active} onChange={setActive} label={label} />
           </div>
         )}
@@ -161,37 +181,34 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
   const radiantWon = isOver && match.radiant_win
   const direWon = isOver && !match.radiant_win
 
-  const winnerCls = 'font-bold text-green-500'
-  const normalCls = 'text-black dark:text-white'
-
   return (
     <>
-      <div className="flex flex-col gap-4 border border-black/20 p-4 dark:border-white/20">
+      <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5 shadow-sm">
         {/* Map label + duration / status */}
-        <div className="flex items-center justify-between text-[13px]">
-          <span className="font-semibold uppercase tracking-wide text-gray-500">
+        <div className="flex items-center justify-between text-[12px]">
+          <span className="font-semibold uppercase tracking-wider text-muted">
             {mapLabel ?? 'Match'}
           </span>
-          {isOver ? (
-            <span className="text-gray-500">Duration {formatDuration(match.duration)}</span>
-          ) : (
-            <span className="text-gray-500">Game time {formatDuration(match.duration)}</span>
-          )}
+          <span className="tnum rounded-md bg-surface-2 px-2 py-0.5 text-muted">
+            {isOver ? 'Duration' : 'Game time'} {formatDuration(match.duration)}
+          </span>
         </div>
 
         {/* Teams + score */}
         <div className="mb-3 flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <TeamLogo teamId={match.radiant_team_id} name={match.radiant_name} />
-            <span className={`truncate text-[20px] font-medium ${radiantWon ? winnerCls : normalCls}`}>
+            <span className={`truncate text-[20px] ${radiantWon ? 'font-bold text-radiant-bright' : 'font-medium text-fg'}`}>
               {match.radiant_name || 'Radiant'}
             </span>
           </div>
-          <span className="shrink-0 font-mono text-[32px] font-bold">
-            {match.radiant_score} <span className="text-gray-500">:</span> {match.dire_score}
+          <span className="tnum shrink-0 font-mono text-[32px] font-bold">
+            <span className="text-radiant-bright">{match.radiant_score}</span>
+            <span className="px-1.5 text-muted">:</span>
+            <span className="text-dire-bright">{match.dire_score}</span>
           </span>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            <span className={`truncate text-right text-[20px] font-medium ${direWon ? winnerCls : normalCls}`}>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2.5">
+            <span className={`truncate text-right text-[20px] ${direWon ? 'font-bold text-dire-bright' : 'font-medium text-fg'}`}>
               {match.dire_name || 'Dire'}
             </span>
             <TeamLogo teamId={match.dire_team_id} name={match.dire_name} />
@@ -206,7 +223,7 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
           direName={match.dire_name}
         />
 
-        <div className="flex flex-wrap justify-center gap-x-3 text-[13px] text-gray-500 dark:text-gray-400">
+        <div className="flex flex-wrap justify-center gap-x-3 text-[13px] text-muted">
           <span>Match {match.match_id}</span>
           <span>·</span>
           <span>{timeAgo(match.start_time)}</span>
@@ -219,8 +236,8 @@ function Detail({ match, mapLabel }: { match: Match; mapLabel?: string }) {
         </div>
       </div>
 
-      <Scoreboard players={radiant} won={match.radiant_win} label={match.radiant_name || 'Radiant'} />
-      <Scoreboard players={dire} won={!match.radiant_win} label={match.dire_name || 'Dire'} />
+      <Scoreboard players={radiant} won={match.radiant_win} label={match.radiant_name || 'Radiant'} faction="radiant" />
+      <Scoreboard players={dire} won={!match.radiant_win} label={match.dire_name || 'Dire'} faction="dire" />
     </>
   )
 }

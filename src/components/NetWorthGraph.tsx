@@ -25,15 +25,16 @@ function kFmt(v: number): string {
   return abs >= 1000 ? `${sign}${Math.round(abs / 1000)}k` : `${sign}${abs}`
 }
 
-const GREEN = '#22c55e'
-const RED = '#ef4444'
+// Faction hues, brightened to match the rest of the UI (radiant / dire).
+const GREEN = '#92c83f'
+const RED = '#ef6a3c'
 
 // Net-worth advantage chart (Recharts). Two zero-clamped areas guarantee the
 // left team (radiant) is always green on top and the right team (dire) is always
 // red below, regardless of who is ahead.
 export function NetWorthGraph({ data, durationSeconds, radiantName, direName }: Props) {
   if (!data || data.length < 2) {
-    return <p className="text-[13px] text-gray-500">No net worth graph for this match.</p>
+    return <p className="text-[13px] text-muted">No net worth graph for this match.</p>
   }
 
   const n = data.length
@@ -55,10 +56,13 @@ export function NetWorthGraph({ data, durationSeconds, radiantName, direName }: 
     const gold = payload[0].payload.gold
     const team = gold >= 0 ? radiantName || 'Radiant' : direName || 'Dire'
     return (
-      <div className="border border-white/30 bg-black px-2 py-1 text-[13px] text-white">
-        <div className="text-gray-400">Time {label}</div>
+      <div className="rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-[13px] text-fg shadow-lg">
+        <div className="text-muted">Time {label}</div>
         <div>
-          <span style={{ color: gold >= 0 ? GREEN : RED }}>{kFmt(Math.abs(gold))}</span> {team}
+          <span className="font-semibold" style={{ color: gold >= 0 ? GREEN : RED }}>
+            {kFmt(Math.abs(gold))}
+          </span>{' '}
+          {team}
         </div>
       </div>
     )
@@ -66,7 +70,7 @@ export function NetWorthGraph({ data, durationSeconds, radiantName, direName }: 
   const tooltipContent = renderTooltip as unknown as ComponentProps<typeof Tooltip>['content']
 
   return (
-    <div className="text-gray-500">
+    <div className="text-muted">
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke="currentColor" strokeOpacity={0.12} vertical={false} />

@@ -38,32 +38,38 @@ function LiveCardBody({ game }: { game: LiveGame }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between text-[13px] text-gray-500 dark:text-gray-400">
-        <span className="inline-flex items-center gap-1.5 border border-red-600/40 bg-red-600/5 px-1.5 py-0.5 font-mono font-medium tracking-wide text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-500">
-          <span aria-hidden className="relative inline-flex h-2.5 w-2.5">
+      <div className="flex items-center justify-between text-[13px] text-muted">
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-dota/40 bg-dota/10 px-2 py-0.5 font-mono text-[12px] font-semibold tracking-wide text-dota-bright">
+          <span aria-hidden className="relative inline-flex h-2 w-2">
             {/* Radar-ping ring; hidden for users who prefer reduced motion. */}
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-600 opacity-75 motion-reduce:hidden dark:bg-red-500" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600 dark:bg-red-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-dota opacity-75 motion-reduce:hidden" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-dota-bright" />
           </span>
           LIVE
-          <span className="text-gray-500 dark:text-gray-400">{formatDuration(game.game_time)}</span>
+          <span className="text-muted">{formatDuration(game.game_time)}</span>
         </span>
-        {game.average_mmr ? <span>{game.average_mmr} avg MMR</span> : null}
+        {game.average_mmr ? (
+          <span className="tnum rounded-md bg-surface-2 px-2 py-0.5 text-[12px]">
+            {game.average_mmr} avg MMR
+          </span>
+        ) : null}
       </div>
 
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="flex items-center gap-2 text-[16px] font-medium">
+          <div className="flex items-center gap-2 text-[15px] font-semibold text-radiant-bright">
             <TeamLogo teamId={game.team_id_radiant} name={game.team_name_radiant} />
             <span className="truncate">{game.team_name_radiant || 'Radiant'}</span>
           </div>
           <HeroRow players={radiant} />
         </div>
-        <div className="shrink-0 text-center font-mono text-[22px] font-bold">
-          {game.radiant_score} <span className="text-gray-500">:</span> {game.dire_score}
+        <div className="tnum shrink-0 text-center font-mono text-[22px] font-bold">
+          <span className="text-radiant-bright">{game.radiant_score}</span>
+          <span className="px-1 text-muted">:</span>
+          <span className="text-dire-bright">{game.dire_score}</span>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="flex items-center justify-end gap-2 text-[16px] font-medium">
+          <div className="flex items-center justify-end gap-2 text-[15px] font-semibold text-dire-bright">
             <span className="truncate">{game.team_name_dire || 'Dire'}</span>
             <TeamLogo teamId={game.team_id_dire} name={game.team_name_dire} />
           </div>
@@ -83,12 +89,12 @@ function SeriesCard({ games, onSelect }: { games: LiveGame[]; onSelect: Props['o
   const game = games[active] ?? games[0]
 
   return (
-    <div className="border border-black/20 dark:border-white/20">
+    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm transition-colors hover:border-line-strong">
       {games.length > 1 && <MapTabs count={games.length} active={active} onChange={setActive} />}
       <button
         type="button"
         onClick={() => onSelect(games.map((g) => g.match_id), active)}
-        className="block w-full p-4 text-left hover:bg-black/5 dark:hover:bg-white/5"
+        className="block w-full cursor-pointer p-4 text-left transition-colors hover:bg-surface-hover"
       >
         <LiveCardBody game={game} />
       </button>
@@ -148,7 +154,7 @@ export function LiveMatches({ onSelect }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[13px] text-gray-500">
+        <p className="text-[13px] text-muted">
           {games.length} {games.length === 1 ? 'game' : 'games'} live · refreshing every{' '}
           {POLL_MS / 1000}s
         </p>
@@ -156,7 +162,7 @@ export function LiveMatches({ onSelect }: Props) {
           value={tier}
           onChange={(e) => setTier(e.target.value as Tier)}
           aria-label="Filter live games by tier"
-          className="border border-black/30 bg-transparent px-2 py-0.5 text-[13px] dark:border-white/40 [color-scheme:light] dark:[color-scheme:dark]"
+          className="cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1 text-[13px] font-medium text-fg transition-colors hover:border-line-strong [color-scheme:light] dark:[color-scheme:dark]"
         >
           {TIERS.map((t) => (
             <option key={t.id} value={t.id}>
@@ -170,7 +176,10 @@ export function LiveMatches({ onSelect }: Props) {
       ) : (
         groups.map(([league, leagueGames]) => (
           <section key={league} className="flex flex-col gap-3">
-            <h2 className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">{league}</h2>
+            <h2 className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-muted">
+              <span className="h-3 w-0.5 rounded-full bg-dota" />
+              {league}
+            </h2>
             {groupSeries(leagueGames).map((series) => (
               <SeriesCard key={series[0].match_id} games={series} onSelect={onSelect} />
             ))}

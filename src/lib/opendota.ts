@@ -68,8 +68,10 @@ export interface LiveGame {
 
 export interface ProMatch {
   match_id: number
-  series_id: number
-  series_type: number // 0 = Bo1, 1 = Bo3, 2 = Bo5
+  // Both can come back null on the freshest games: OpenDota backfills series
+  // metadata a little after a match lands in the feed.
+  series_id: number | null
+  series_type: number | null // 0 = Bo1, 1 = Bo3, 2 = Bo5
   duration: number
   start_time: number
   radiant_name: string | null

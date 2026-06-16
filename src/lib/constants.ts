@@ -128,12 +128,41 @@ export function groupByKey<T>(
 // Buckets matches into series: games sharing a series_id (> 0) group together,
 // standalone games stay on their own. Group order follows first appearance;
 // games within a bucket are sorted ascending by match_id (Map 1 first).
-export function groupSeries<T extends { match_id: number; series_id: number }>(
+//
+// OpenDota's feed often leaves the newest game of a series untagged
+// (series_id null) until it backfills, which would split it onto its own card.
+// When `pairKey` is supplied (an unordered team-pair id), an untagged game
+// inherits the series_id of the adjacent same-opponent game(s) in the feed, so
+// the lagging map merges back into its series.
+export function groupSeries<T extends { match_id: number; series_id: number | null }>(
   items: T[],
+  pairKey?: (item: T) => string | null,
 ): T[][] {
-  const buckets = groupByKey(items, (m) =>
-    m.series_id > 0 ? `s${m.series_id}` : `m${m.match_id}`,
-  )
+  const hasSeries = (m: T) => (m.series_id ?? 0) > 0
+  // Newest first, matching the feed order, so an untagged latest map sits next
+  // to the tagged earlier maps it belongs to.
+  const ordered = [...items].sort((a, b) => b.match_id - a.match_id)
+
+  const keyFor = (m: T, i: number): string => {
+    if (hasSeries(m)) return `s${m.series_id}`
+    const pk = pairKey?.(m)
+    if (pk) {
+      // Walk the contiguous run of same-opponent games either side; the first
+      // one carrying a series_id tags this whole run.
+      for (let j = i - 1; j >= 0 && pairKey?.(ordered[j]) === pk; j--) {
+        if (hasSeries(ordered[j])) return `s${ordered[j].series_id}`
+      }
+      for (let j = i + 1; j < ordered.length && pairKey?.(ordered[j]) === pk; j++) {
+        if (hasSeries(ordered[j])) return `s${ordered[j].series_id}`
+      }
+    }
+    return `m${m.match_id}`
+  }
+
+  const keyByMatch = new Map<number, string>()
+  ordered.forEach((m, i) => keyByMatch.set(m.match_id, keyFor(m, i)))
+
+  const buckets = groupByKey(items, (m) => keyByMatch.get(m.match_id)!)
   return buckets.map(([, games]) =>
     [...games].sort((a, b) => a.match_id - b.match_id),
   )

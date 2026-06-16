@@ -2,21 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SpotDota</title>
+    <meta name="description" content="Live and recent Dota 2 pro match scores, drafts and scoreboards." />
+    <meta name="theme-color" content="#0a0b0e" />
+    <title>SpotDota · Dota 2 match tracker</title>
     <script>
-      // Apply the saved/system theme before paint to avoid a flash.
+      // Apply the saved theme before paint to avoid a flash. Dark is the
+      // default; only an explicit 'light' choice opts out.
       (function () {
         try {
-          var t = localStorage.getItem('theme')
-          if (
-            t === 'dark' ||
-            (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)
-          ) {
+          if (localStorage.getItem('theme') !== 'light') {
             document.documentElement.classList.add('dark')
           }
-        } catch (e) {}
+        } catch (e) {
+          document.documentElement.classList.add('dark')
+        }
       })()
     </script>
   </head>

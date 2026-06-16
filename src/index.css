@@ -3,6 +3,56 @@
 /* Manual (class-based) dark mode: `dark:` utilities key off `.dark` on <html>. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ---------------------------------------------------------------------------
+   Theme-aware semantic tokens. `@theme inline` inlines these into utilities
+   (e.g. `bg-surface` -> `background-color: var(--surface)`), so they flip with
+   the `.dark` class at runtime without duplicating every utility.
+--------------------------------------------------------------------------- */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-hover: var(--surface-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+}
+
+/* Dota 2 brand palette. Faction/attribute hues are nudged brighter than the
+   in-game source values so they stay legible on dark surfaces. */
+@theme {
+  --color-dota: #bf2e1a;
+  --color-dota-bright: #e0432c;
+  --color-radiant: #6aa81e;
+  --color-radiant-bright: #92c83f;
+  --color-dire: #d24a22;
+  --color-dire-bright: #ef6a3c;
+  --color-str: #cf6017;
+  --color-agi: #2aa31f;
+  --color-int: #3a9bd0;
+  --color-uni: #7a5cf0;
+}
+
+:root {
+  --surface: #ffffff;
+  --surface-2: #f5f5f7;
+  --surface-hover: #f0f0f3;
+  --line: rgba(15, 18, 25, 0.1);
+  --line-strong: rgba(15, 18, 25, 0.2);
+  --fg: #15171c;
+  --muted: #687184;
+}
+
+.dark {
+  --surface: #14161b;
+  --surface-2: #191c22;
+  --surface-hover: #1e222a;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --fg: #e8eaef;
+  --muted: #8d94a3;
+}
+
 html,
 body,
 #root {
@@ -11,12 +61,23 @@ body,
 
 body {
   margin: 0;
-  background: #fff;
-  color: #111;
+  background: #fafafb;
+  color: var(--fg);
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Atmospheric backdrop: a faint Dota-red glow over deep charcoal in dark mode,
+   a soft neutral wash in light mode. Fixed so it doesn't scroll with content. */
 .dark body {
-  background: #000;
-  color: #fff;
+  background:
+    radial-gradient(900px 500px at 50% -10%, rgba(191, 46, 26, 0.16), transparent 60%),
+    radial-gradient(700px 600px at 100% 0%, rgba(37, 125, 174, 0.08), transparent 55%),
+    #0a0b0e;
+  background-attachment: fixed;
+}
+
+/* Tabular figures for scores/stats so columns don't jitter. */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }

@@ -13,29 +13,48 @@ interface Props {
 
 function PastCardBody({ match }: { match: ProMatch }) {
   const radiantWon = match.radiant_win
-  const winnerCls = 'font-semibold text-green-500'
-  const loserCls = 'text-gray-400 dark:text-gray-500'
 
   return (
     <>
       <div className="flex items-center justify-between gap-4">
-        <span className={`flex min-w-0 flex-1 items-center gap-1.5 truncate text-[16px] font-medium ${radiantWon ? winnerCls : loserCls}`}>
+        <span className={`flex min-w-0 flex-1 items-center gap-2 truncate text-[16px] ${radiantWon ? 'font-semibold text-radiant-bright' : 'font-medium text-muted'}`}>
           <TeamLogo teamId={match.radiant_team_id} name={match.radiant_name} />
           <span className="truncate">{match.radiant_name || 'Radiant'}</span>
         </span>
-        <span className="shrink-0 font-mono text-[22px] font-bold">
-          {match.radiant_score} <span className="text-gray-500">:</span> {match.dire_score}
+        <span className="tnum shrink-0 font-mono text-[22px] font-bold">
+          <span className={radiantWon ? 'text-radiant-bright' : 'text-fg'}>{match.radiant_score}</span>
+          <span className="px-1 text-muted">:</span>
+          <span className={radiantWon ? 'text-fg' : 'text-dire-bright'}>{match.dire_score}</span>
         </span>
-        <span className={`flex min-w-0 flex-1 items-center justify-end gap-1.5 truncate text-[16px] font-medium ${radiantWon ? loserCls : winnerCls}`}>
+        <span className={`flex min-w-0 flex-1 items-center justify-end gap-2 truncate text-[16px] ${radiantWon ? 'font-medium text-muted' : 'font-semibold text-dire-bright'}`}>
           <span className="truncate">{match.dire_name || 'Dire'}</span>
           <TeamLogo teamId={match.dire_team_id} name={match.dire_name} />
         </span>
       </div>
-      <div className="mt-2 text-[13px] text-gray-500">
+      <div className="mt-2.5 text-[12px] text-muted">
         {formatDuration(match.duration)} · {timeAgo(match.start_time)}
       </div>
     </>
   )
+}
+
+// Unordered team-pair key, used to merge a series' latest map back in when
+// OpenDota hasn't tagged it with a series_id yet. Prefers team ids, falls back
+// to names.
+function teamPairKey(m: ProMatch): string | null {
+  if (m.radiant_team_id && m.dire_team_id) {
+    return [m.radiant_team_id, m.dire_team_id].sort((x, y) => x - y).join('-')
+  }
+  if (m.radiant_name && m.dire_name) {
+    return [m.radiant_name, m.dire_name].sort().join('|')
+  }
+  return null
+}
+
+// Series format, read from whichever game carries it (the newest map can be
+// untagged). 0/null = Bo1, 1 = Bo3, 2 = Bo5.
+function seriesType(games: ProMatch[]): number {
+  return games.find((g) => g.series_type != null)?.series_type ?? 0
 }
 
 // Tallies map wins per team across a series. Teams swap radiant/dire between
@@ -52,7 +71,8 @@ function seriesResult(games: ProMatch[]) {
     if (isA) aWins++
     else bWins++
   }
-  const needed = games[0].series_type === 2 ? 3 : games[0].series_type === 1 ? 2 : 1
+  const type = seriesType(games)
+  const needed = type === 2 ? 3 : type === 1 ? 2 : 1
   const winner = aWins >= needed ? 'a' : bWins >= needed ? 'b' : null
   return { a, b, aWins, bWins, winner }
 }
@@ -61,7 +81,7 @@ function seriesResult(games: ProMatch[]) {
 function seriesLabelText(games: ProMatch[]): string {
   const { a, b, aWins, bWins, winner } = seriesResult(games)
   if (winner) return `MW: ${winner === 'a' ? a.name : b.name}`
-  return `${aWins} - ${bWins} · ${seriesLabel(games[0].series_type)}`
+  return `${aWins} - ${bWins} · ${seriesLabel(seriesType(games))}`
 }
 
 // "MW: <winner>" once the series is decided, otherwise the running score + Bo.
@@ -70,13 +90,13 @@ function seriesLabelNode(games: ProMatch[]) {
   if (winner) {
     return (
       <span>
-        MW: <span className="font-semibold text-green-500">{winner === 'a' ? a.name : b.name}</span>
+        MW: <span className="font-semibold text-radiant-bright">{winner === 'a' ? a.name : b.name}</span>
       </span>
     )
   }
   return (
     <span>
-      {aWins} - {bWins} · {seriesLabel(games[0].series_type)}
+      {aWins} - {bWins} · {seriesLabel(seriesType(games))}
     </span>
   )
 }
@@ -89,7 +109,7 @@ function SeriesCard({ games, onSelect }: { games: ProMatch[]; onSelect: Props['o
   const isSeries = games.length > 1
 
   return (
-    <div className="border border-black/20 dark:border-white/20">
+    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm transition-colors hover:border-line-strong">
       {isSeries && (
         <MapTabs
           count={games.length}
@@ -103,7 +123,7 @@ function SeriesCard({ games, onSelect }: { games: ProMatch[]; onSelect: Props['o
         onClick={() =>
           onSelect(games.map((g) => g.match_id), active, isSeries ? seriesLabelText(games) : undefined)
         }
-        className="block w-full p-6 text-left hover:bg-black/5 dark:hover:bg-white/5"
+        className="block w-full cursor-pointer p-5 text-left transition-colors hover:bg-surface-hover"
       >
         <PastCardBody match={match} />
       </button>
@@ -127,21 +147,24 @@ export function PastMatches({ onSelect }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <p className="text-[13px] text-gray-500">
+        <p className="text-[13px] text-muted">
           {matches.length} recent {matches.length === 1 ? 'match' : 'matches'}
         </p>
         <button
           type="button"
           onClick={reload}
-          className="border border-black/40 px-2 py-0.5 text-[13px] hover:bg-black hover:text-white dark:border-white/40 dark:hover:bg-white dark:hover:text-black"
+          className="cursor-pointer rounded-lg border border-line px-3 py-1 text-[13px] font-medium text-muted transition-colors hover:border-dota hover:bg-dota hover:text-white"
         >
           Refresh
         </button>
       </div>
       {leagues.map(([league, leagueMatches]) => (
         <section key={league} className="flex flex-col gap-3">
-          <h2 className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">{league}</h2>
-          {groupSeries(leagueMatches).map((series) => (
+          <h2 className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-muted">
+            <span className="h-3 w-0.5 rounded-full bg-dota" />
+            {league}
+          </h2>
+          {groupSeries(leagueMatches, teamPairKey).map((series) => (
             <SeriesCard key={series[0].match_id} games={series} onSelect={onSelect} />
           ))}
         </section>

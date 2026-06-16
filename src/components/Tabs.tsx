@@ -12,16 +12,16 @@ const TABS: { id: Tab; label: string }[] = [
 
 export function Tabs({ active, onChange }: Props) {
   return (
-    <div className="flex border-b border-black/15 dark:border-white/20">
+    <div className="flex border-b border-line">
       {TABS.map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => onChange(t.id)}
-          className={`-mb-px border-b-2 px-4 py-2 text-[15px] font-medium ${
+          className={`-mb-px cursor-pointer border-b-2 px-4 py-2.5 text-[15px] font-semibold transition-colors ${
             active === t.id
-              ? 'border-black text-black dark:border-white dark:text-white'
-              : 'border-transparent text-gray-500 hover:text-black dark:hover:text-white'
+              ? 'border-dota text-fg'
+              : 'border-transparent text-muted hover:text-fg'
           }`}
         >
           {t.label}

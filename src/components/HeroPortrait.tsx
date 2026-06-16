@@ -14,7 +14,7 @@ export function HeroPortrait({ heroId, size = 'md' }: Props) {
   if (!info) {
     return (
       <div
-        className={`${dims} shrink-0 border border-black/20 bg-black/5 dark:border-white/20 dark:bg-white/5`}
+        className={`${dims} shrink-0 rounded border border-line bg-surface-2`}
         title={`Hero ${heroId}`}
       />
     )
@@ -26,7 +26,7 @@ export function HeroPortrait({ heroId, size = 'md' }: Props) {
       alt={info.name}
       title={info.name}
       loading="lazy"
-      className={`${dims} shrink-0 border border-black/20 object-cover dark:border-white/20`}
+      className={`${dims} shrink-0 rounded border border-line object-cover`}
       onError={(e) => {
         e.currentTarget.style.visibility = 'hidden'
       }}
