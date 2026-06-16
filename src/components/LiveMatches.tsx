@@ -94,12 +94,24 @@ function SeriesCard({ games, onSelect }: { games: LiveGame[]; onSelect: Props['o
 // listed for a long time, so staleness is the reliable "still live" signal.
 const STALE_AFTER_S = 300
 
+// Tournament games (league_id > 0) are professional; everything else on /live is
+// a high-MMR public game, which we surface as amateur.
+type Tier = 'all' | 'pro' | 'amateur'
+const TIERS: { id: Tier; label: string }[] = [
+  { id: 'all', label: 'All matches' },
+  { id: 'pro', label: 'Professional' },
+  { id: 'amateur', label: 'Amateur' },
+]
+const matchesTier = (g: LiveGame, tier: Tier) =>
+  tier === 'all' || (tier === 'pro' ? g.league_id > 0 : g.league_id === 0)
+
 export function LiveMatches({ onSelect }: Props) {
   const ready = useAssets()
   const { data, loading, error, reload } = usePolling(getLive, POLL_MS)
   // Belt-and-braces: also drop anything already in the completed pro feed.
   const { data: completed } = useFetch(getProMatches)
   const finishedIds = new Set((completed ?? []).map((m) => m.match_id))
+  const [tier, setTier] = useState<Tier>('all')
 
   if (error) return <StateMessage message={error} onRetry={reload} />
   if (!ready || (loading && !data)) return <StateMessage message="Loading live games…" />
@@ -111,34 +123,54 @@ export function LiveMatches({ onSelect }: Props) {
   const isLive = (g: LiveGame) =>
     g.last_update_time > 0 && serverNow - g.last_update_time < STALE_AFTER_S
 
-  const games = all
+  const live = all
     .filter((g) => g.players?.length === 10 && isLive(g) && !finishedIds.has(g.match_id))
     // Tournaments first, then by average MMR (public/high-MMR games).
     .sort((a, b) => {
-      const tier = (b.league_id > 0 ? 1 : 0) - (a.league_id > 0 ? 1 : 0)
-      return tier !== 0 ? tier : (b.average_mmr ?? 0) - (a.average_mmr ?? 0)
+      const byTier = (b.league_id > 0 ? 1 : 0) - (a.league_id > 0 ? 1 : 0)
+      return byTier !== 0 ? byTier : (b.average_mmr ?? 0) - (a.average_mmr ?? 0)
     })
 
-  if (games.length === 0) return <StateMessage message="No live games right now." />
+  if (live.length === 0) return <StateMessage message="No live games right now." />
 
+  const games = live.filter((g) => matchesTier(g, tier))
   const groups = groupByKey(games, (g) =>
     leagueName(g.league_id) ?? (g.league_id > 0 ? `League ${g.league_id}` : 'Public matches'),
   )
+  const tierLabel = TIERS.find((t) => t.id === tier)!.label.toLowerCase()
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-[13px] text-gray-500">
-        {games.length} {games.length === 1 ? 'game' : 'games'} live · refreshing every{' '}
-        {POLL_MS / 1000}s
-      </p>
-      {groups.map(([league, leagueGames]) => (
-        <section key={league} className="flex flex-col gap-3">
-          <h2 className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">{league}</h2>
-          {groupSeries(leagueGames).map((series) => (
-            <SeriesCard key={series[0].match_id} games={series} onSelect={onSelect} />
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] text-gray-500">
+          {games.length} {games.length === 1 ? 'game' : 'games'} live · refreshing every{' '}
+          {POLL_MS / 1000}s
+        </p>
+        <select
+          value={tier}
+          onChange={(e) => setTier(e.target.value as Tier)}
+          aria-label="Filter live games by tier"
+          className="border border-black/30 bg-transparent px-2 py-0.5 text-[13px] dark:border-white/40 [color-scheme:light] dark:[color-scheme:dark]"
+        >
+          {TIERS.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
           ))}
-        </section>
-      ))}
+        </select>
+      </div>
+      {games.length === 0 ? (
+        <StateMessage message={`No ${tierLabel} games live right now.`} />
+      ) : (
+        groups.map(([league, leagueGames]) => (
+          <section key={league} className="flex flex-col gap-3">
+            <h2 className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">{league}</h2>
+            {groupSeries(leagueGames).map((series) => (
+              <SeriesCard key={series[0].match_id} games={series} onSelect={onSelect} />
+            ))}
+          </section>
+        ))
+      )}
     </div>
   )
 }
