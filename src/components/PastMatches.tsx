@@ -8,7 +8,7 @@ import { StateMessage } from './StateMessage'
 import { TeamLogo } from './TeamLogo'
 
 interface Props {
-  onSelect: (matchIds: number[], index: number) => void
+  onSelect: (matchIds: number[], index: number, label?: string) => void
 }
 
 function PastCardBody({ match }: { match: ProMatch }) {
