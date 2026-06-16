@@ -4,7 +4,11 @@ interface Props {
   className?: string
 }
 
-// SpotDota logo (shield + timer).
+// SpotDota logo (shield + timer). Links home.
 export function Logo({ className }: Props) {
-  return <img src={logoUrl} alt="SpotDota" className={className} />
+  return (
+    <a href={import.meta.env.BASE_URL}>
+      <img src={logoUrl} alt="SpotDota" className={className} />
+    </a>
+  )
 }
