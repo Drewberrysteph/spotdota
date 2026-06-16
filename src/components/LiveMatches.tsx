@@ -21,7 +21,7 @@ function splitTeams(players: LivePlayer[]): [LivePlayer[], LivePlayer[]] {
   return [players.slice(0, 5), players.slice(5, 10)]
 }
 
-function HeroRow({ players }: { players: LivePlayer[] }) {
+function HeroRow({ players }: { players: Array<{ hero_id: number }> }) {
   return (
     <div className="flex gap-1">
       {players.map((p, i) => (
@@ -56,21 +56,21 @@ function LiveCardBody({ game }: { game: LiveGame }) {
 
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="flex items-center gap-2 text-[15px] font-semibold text-radiant-bright">
-            <TeamLogo teamId={game.team_id_radiant} name={game.team_name_radiant} />
+          <div className="flex items-center gap-2 text-[15px] font-semibold text-fg">
+            <TeamLogo teamId={game.team_id_radiant} name={game.team_name_radiant} logoUrl={game.team_logo_radiant} />
             <span className="truncate">{game.team_name_radiant || 'Radiant'}</span>
           </div>
           <HeroRow players={radiant} />
         </div>
         <div className="tnum shrink-0 text-center font-mono text-[22px] font-bold">
-          <span className="text-radiant-bright">{game.radiant_score}</span>
+          <span className="text-fg">{game.radiant_score}</span>
           <span className="px-1 text-muted">:</span>
-          <span className="text-dire-bright">{game.dire_score}</span>
+          <span className="text-fg">{game.dire_score}</span>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="flex items-center justify-end gap-2 text-[15px] font-semibold text-dire-bright">
+          <div className="flex items-center justify-end gap-2 text-[15px] font-semibold text-fg">
             <span className="truncate">{game.team_name_dire || 'Dire'}</span>
-            <TeamLogo teamId={game.team_id_dire} name={game.team_name_dire} />
+            <TeamLogo teamId={game.team_id_dire} name={game.team_name_dire} logoUrl={game.team_logo_dire} />
           </div>
           <div className="flex justify-end">
             <HeroRow players={dire} />
@@ -91,7 +91,7 @@ function CompletedMapBody({ map, game }: { map: SeriesMap; game: LiveGame }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-4">
         <span className={`flex min-w-0 flex-1 items-center gap-2 truncate text-[15px] ${radiantWon === true ? 'font-semibold text-radiant-bright' : radiantWon === false ? 'font-medium text-muted' : 'font-medium text-fg'}`}>
-          <TeamLogo teamId={game.team_id_radiant} name={game.team_name_radiant} />
+          <TeamLogo teamId={game.team_id_radiant} name={game.team_name_radiant} logoUrl={game.team_logo_radiant} />
           <span className="truncate">{game.team_name_radiant || 'Radiant'}</span>
         </span>
         <span className="tnum shrink-0 font-mono text-[22px] font-bold">
@@ -99,17 +99,26 @@ function CompletedMapBody({ map, game }: { map: SeriesMap; game: LiveGame }) {
             <>
               <span className={radiantWon === true ? 'text-radiant-bright' : 'text-fg'}>{map.radiant_score}</span>
               <span className="px-1 text-muted">:</span>
-              <span className={radiantWon === false ? 'text-dire-bright' : 'text-fg'}>{map.dire_score}</span>
+              <span className={radiantWon === false ? 'text-radiant-bright' : 'text-fg'}>{map.dire_score}</span>
             </>
           ) : (
             <span className="text-muted text-[16px]">- : -</span>
           )}
         </span>
-        <span className={`flex min-w-0 flex-1 items-center justify-end gap-2 truncate text-[15px] ${radiantWon === false ? 'font-semibold text-dire-bright' : radiantWon === true ? 'font-medium text-muted' : 'font-medium text-fg'}`}>
+        <span className={`flex min-w-0 flex-1 items-center justify-end gap-2 truncate text-[15px] ${radiantWon === false ? 'font-semibold text-radiant-bright' : radiantWon === true ? 'font-medium text-muted' : 'font-medium text-fg'}`}>
           <span className="truncate">{game.team_name_dire || 'Dire'}</span>
-          <TeamLogo teamId={game.team_id_dire} name={game.team_name_dire} />
+          <TeamLogo teamId={game.team_id_dire} name={game.team_name_dire} logoUrl={game.team_logo_dire} />
         </span>
       </div>
+      {map.players?.length > 0 && (
+        <div className="flex items-start justify-between gap-4">
+          <HeroRow players={map.players.filter((p) => p.team === 0)} />
+          <div className="shrink-0" />
+          <div className="flex justify-end">
+            <HeroRow players={map.players.filter((p) => p.team === 1)} />
+          </div>
+        </div>
+      )}
       {map.duration != null && (
         <p className="text-[12px] text-muted">{formatDuration(map.duration)}</p>
       )}

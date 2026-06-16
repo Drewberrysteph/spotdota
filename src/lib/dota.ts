@@ -56,6 +56,7 @@ export interface SeriesMap {
   dire_score: number | null
   duration: number | null
   radiant_win: boolean | null
+  players: Array<{ hero_id: number; team: number }>
 }
 
 export interface LiveGame {
@@ -74,6 +75,8 @@ export interface LiveGame {
   team_name_dire: string | null
   team_id_radiant: number
   team_id_dire: number
+  team_logo_radiant: string | null
+  team_logo_dire: string | null
   players: LivePlayer[]
   // Series context from GetLiveLeagueGames.
   radiant_series_wins?: number
@@ -93,10 +96,13 @@ export interface ProMatch {
   dire_name: string | null
   radiant_team_id: number | null
   dire_team_id: number | null
+  team_logo_radiant: string | null
+  team_logo_dire: string | null
   league_name: string | null
   radiant_score: number
   dire_score: number
   radiant_win: boolean
+  players: Array<{ hero_id: number; team: number }>
 }
 
 export interface MatchPlayer {

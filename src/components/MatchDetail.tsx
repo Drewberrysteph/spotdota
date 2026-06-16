@@ -11,6 +11,7 @@ import { TeamLogo } from './TeamLogo'
 
 interface Props {
   matchIds: number[] // every map in the series; single entry for a standalone game
+  matchSeqs?: number[] // parallel to matchIds; detail is fetched by seq, absent for live games
   initialIndex: number // which map was clicked
   label?: string // series result shown inline with the map tabs, e.g. "MW: Team Spirit"
   onClose: () => void
@@ -129,11 +130,12 @@ function Scoreboard({
   )
 }
 
-export function MatchDetail({ matchIds, initialIndex, label, onClose }: Props) {
+export function MatchDetail({ matchIds, matchSeqs, initialIndex, label, onClose }: Props) {
   useAssets()
   const [active, setActive] = useState(initialIndex)
   const isSeries = matchIds.length > 1
   const matchId = matchIds[active] ?? matchIds[0]
+  const matchSeq = matchSeqs?.[active]
   const mapLabel = isSeries ? `Map ${active + 1}` : undefined
 
   return (
@@ -154,14 +156,24 @@ export function MatchDetail({ matchIds, initialIndex, label, onClose }: Props) {
         )}
 
         {/* Keyed on matchId so switching maps remounts and refetches. */}
-        <MatchView key={matchId} matchId={matchId} mapLabel={mapLabel} />
+        <MatchView key={matchId} matchSeq={matchSeq} mapLabel={mapLabel} />
       </div>
     </div>
   )
 }
 
-function MatchView({ matchId, mapLabel }: { matchId: number; mapLabel?: string }) {
-  const { data, loading, error, reload } = useFetch(() => getMatch(matchId))
+function MatchView({ matchSeq, mapLabel }: { matchSeq?: number; mapLabel?: string }) {
+  // Live games arrive without a seq (no detail until they finish).
+  if (matchSeq == null) {
+    return (
+      <StateMessage message="Detailed stats appear here once the game finishes." />
+    )
+  }
+  return <MatchViewBySeq matchSeq={matchSeq} mapLabel={mapLabel} />
+}
+
+function MatchViewBySeq({ matchSeq, mapLabel }: { matchSeq: number; mapLabel?: string }) {
+  const { data, loading, error, reload } = useFetch(() => getMatch(matchSeq))
 
   return (
     <>

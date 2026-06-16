@@ -1,5 +1,5 @@
 // Lazy, module-cached lookups for hero and item assets, plus small formatters.
-import { getHeroStats, getItemConstants, getLeagues } from './dota'
+import { getHeroStats, getItemConstants } from './dota'
 
 const CDN = 'https://cdn.cloudflare.steamstatic.com'
 
@@ -14,11 +14,9 @@ export interface ItemInfo {
 
 let heroMap: Map<number, HeroInfo> | null = null
 let itemMap: Map<number, ItemInfo> | null = null
-let leagueMap: Map<number, string> | null = null
 
 let heroPromise: Promise<Map<number, HeroInfo>> | null = null
 let itemPromise: Promise<Map<number, ItemInfo>> | null = null
-let leaguePromise: Promise<Map<number, string>> | null = null
 
 export async function loadHeroes(): Promise<Map<number, HeroInfo>> {
   if (heroMap) return heroMap
@@ -52,25 +50,10 @@ export async function loadItems(): Promise<Map<number, ItemInfo>> {
   return itemPromise
 }
 
-export async function loadLeagues(): Promise<Map<number, string>> {
-  if (leagueMap) return leagueMap
-  if (!leaguePromise) {
-    leaguePromise = getLeagues().then((leagues) => {
-      const m = new Map<number, string>()
-      for (const l of leagues) {
-        if (l.name) m.set(l.leagueid, l.name)
-      }
-      leagueMap = m
-      return m
-    })
-  }
-  return leaguePromise
-}
-
-// Loads the asset maps together; used to gate rendering of hero/item icons and
-// tournament names.
+// Loads the asset maps together; used to gate rendering of hero/item icons.
+// League names arrive embedded in the live/match payloads, so no separate load.
 export async function loadAssets() {
-  await Promise.all([loadHeroes(), loadItems(), loadLeagues()])
+  await Promise.all([loadHeroes(), loadItems()])
 }
 
 export function heroInfo(id: number): HeroInfo | undefined {
@@ -78,9 +61,6 @@ export function heroInfo(id: number): HeroInfo | undefined {
 }
 export function itemInfo(id: number): ItemInfo | undefined {
   return itemMap?.get(id)
-}
-export function leagueName(id: number): string | undefined {
-  return leagueMap?.get(id)
 }
 // Slot < 128 is Radiant, otherwise Dire (applies to player_slot and team_slot).
 export function isRadiant(slot: number): boolean {

@@ -15,19 +15,22 @@ function App() {
   const [tab, setTab] = useState<Tab>('live')
   const [selected, setSelected] = useState<{
     matchIds: number[]
+    matchSeqs?: number[]
     index: number
     label?: string
   } | null>(null)
   const { theme, toggle } = useTheme()
 
-  const openMatch = (matchIds: number[], index: number, label?: string) =>
-    setSelected({ matchIds, index, label })
+  // matchSeqs (parallel to matchIds) is supplied by Past Matches; detail is
+  // fetched by seq. Live games omit it (no detail until they finish).
+  const openMatch = (matchIds: number[], index: number, label?: string, matchSeqs?: number[]) =>
+    setSelected({ matchIds, matchSeqs, index, label })
 
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-5 px-4 pb-16 pt-5">
       <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <Logo className="h-11 w-11 rounded-xl shadow-lg shadow-dota/20" />
+          <Logo className="h-24 w-24 rounded-xl" />
           <div className="leading-none">
             <h1 className="text-[22px] font-bold tracking-tight">
               Spot<span className="text-dota-bright">Dota</span>
@@ -59,6 +62,7 @@ function App() {
         <Suspense fallback={null}>
           <MatchDetail
             matchIds={selected.matchIds}
+            matchSeqs={selected.matchSeqs}
             initialIndex={selected.index}
             label={selected.label}
             onClose={() => setSelected(null)}

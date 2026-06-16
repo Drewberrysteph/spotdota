@@ -11,10 +11,11 @@ export const heroImg = (name) =>
 export const itemImg = (name) =>
   `/apps/dota2/images/dota_react/items/${itemShort(name)}.png`
 
-// Past Matches has no global pro feed on Steam, so we pull recent results for a
-// curated set of leagues (union'd at request time with whatever is live now).
-// Edit this each season as tournaments change - this is the one piece of the
-// Steam migration that needs occasional upkeep.
+// Steam has no global pro-match feed, so Past Matches pulls recent results for
+// these league ids (union'd at request time with whatever is live now). League
+// names are resolved automatically from Valve's esports API, so this is only a
+// list of tournaments you want to keep in Past Matches even when they are not
+// currently live. Leave empty to just track whatever is live.
 export const LEAGUE_IDS = [
-  // Add marquee league ids here, e.g. the current TI / DPC majors.
+  // e.g. 18865,
 ]

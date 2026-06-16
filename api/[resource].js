@@ -12,6 +12,7 @@ import {
   mapItems,
   rememberLiveLeagues,
   rememberLiveSeries,
+  populateLiveSeriesIds,
   recentLeagueIds,
 } from './_lib/map.js'
 import { LEAGUE_IDS } from './_lib/assets.js'
@@ -46,8 +47,10 @@ export default async function handler(req, res) {
         // Configured leagues, plus leagues seen live now or recently (so a
         // tournament that just went idle between series stays visible here).
         const live = await steamFetch('/IDOTA2Match_570/GetLiveLeagueGames/v1/').catch(() => null)
-        rememberLiveLeagues((live?.result?.games ?? []).map((g) => g.league_id))
-        rememberLiveSeries(live?.result?.games ?? [])
+        const liveGames = live?.result?.games ?? []
+        rememberLiveLeagues(liveGames.map((g) => g.league_id))
+        rememberLiveSeries(liveGames)
+        await populateLiveSeriesIds(liveGames)
         const leagueIds = [...new Set([...LEAGUE_IDS, ...recentLeagueIds()])]
         const data = await mapProMatches(leagueIds)
         cache(res, 60, 300)

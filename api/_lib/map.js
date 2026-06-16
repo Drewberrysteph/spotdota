@@ -28,6 +28,44 @@ async function resolveLeagueName(id) {
   return name
 }
 
+// ugcId -> url | null. UGC ids are uint64s that steam.js preserves as strings
+// (parsing them as JS numbers loses precision and breaks the lookup).
+const teamLogoCache = new Map()
+
+async function resolveTeamLogo(ugcId) {
+  if (!ugcId || ugcId === '0') return null
+  if (teamLogoCache.has(ugcId)) return teamLogoCache.get(ugcId)
+  const url = await steamFetch('/ISteamRemoteStorage/GetUGCFileDetails/v1/', {
+    appid: 570,
+    ugcid: ugcId,
+  })
+    .then((j) => j?.data?.url ?? null)
+    .catch(() => null)
+  teamLogoCache.set(ugcId, url)
+  return url
+}
+
+// teamId -> url | null. Shared between live (populated as side effect) and past
+// matches (looked up via GetTeamInfoByTeamID when cold).
+const teamInfoCache = new Map()
+
+async function resolveTeamLogoById(teamId) {
+  if (!teamId || teamId <= 0) return null
+  if (teamInfoCache.has(teamId)) return teamInfoCache.get(teamId)
+  // start_at_team_id is a cursor: with teams_requested=1 it returns the exact
+  // team when it exists (the case for any team that has played a match). The
+  // response omits team_id, so we can't assert the match - acceptable here.
+  const info = await steamFetch('/IDOTA2Match_570/GetTeamInfoByTeamID/v1/', {
+    start_at_team_id: teamId,
+    teams_requested: 1,
+  })
+    .then((j) => j?.result?.teams?.[0] ?? null)
+    .catch(() => null)
+  const url = info?.logo ? await resolveTeamLogo(info.logo) : null
+  teamInfoCache.set(teamId, url)
+  return url
+}
+
 // Resolves a batch of league ids in parallel, then returns a labeller that falls
 // back to "League {id}" for anything Valve didn't name.
 async function leagueLabeller(ids) {
@@ -64,6 +102,32 @@ export function rememberLiveSeries(games) {
   }
 }
 
+// For each in-progress series game, fetches match history and registers the
+// completed maps' series_ids into _liveSeriesIds so mapProMatches can exclude
+// them. Called from the pro-matches handler before mapProMatches runs.
+export async function populateLiveSeriesIds(liveGames) {
+  const inProgress = liveGames.filter(
+    (g) => ((g.radiant_series_wins ?? 0) + (g.dire_series_wins ?? 0)) > 0,
+  )
+  if (inProgress.length === 0) return
+
+  await Promise.all(
+    inProgress.map(async (g) => {
+      const hist = await steamFetch('/IDOTA2Match_570/GetMatchHistory/v1/', {
+        league_id: g.league_id,
+        matches_requested: 15,
+      })
+        .then((j) => j?.result?.matches ?? [])
+        .catch(() => [])
+
+      const candidates = findSeriesCandidates(g, hist)
+      for (const m of candidates) {
+        if (m.series_id) _liveSeriesIds.add(m.series_id)
+      }
+    }),
+  )
+}
+
 export function rememberLiveLeagues(ids) {
   const now = Date.now()
   for (const id of ids) if (id) recentLiveLeagues.set(id, now)
@@ -96,6 +160,52 @@ async function mapLimit(items, limit, fn) {
 
 // --- Live games --------------------------------------------------------------
 
+// Given a raw live game `g` and a match history array, finds the completed maps
+// for that series. Uses series_id grouping so a re-registered team ID (different
+// id in history vs live) still resolves correctly.
+function findSeriesCandidates(g, hist) {
+  const total = (g.radiant_series_wins ?? 0) + (g.dire_series_wins ?? 0)
+  if (total === 0) return []
+
+  const radId = g.radiant_team?.team_id
+  const direId = g.dire_team?.team_id
+
+  // Primary: exact pair match (both IDs consistent).
+  if (radId && direId) {
+    const pair = hist.filter(
+      (m) =>
+        ((m.radiant_team_id === radId && m.dire_team_id === direId) ||
+          (m.radiant_team_id === direId && m.dire_team_id === radId)) &&
+        m.match_id < g.match_id,
+    )
+    if (pair.length > 0) return pair.sort((a, b) => a.match_id - b.match_id).slice(0, total)
+  }
+
+  // Fallback: one team re-registered under a different id. Group recent matches
+  // by series_id across both known team ids, then pick the series whose map count
+  // is closest to (but not exceeding) `total`. This avoids picking a completed
+  // series from a different match-up whose count happens to be larger.
+  const teamIds = [radId, direId].filter(Boolean)
+  const seriesMap = new Map()
+  for (const id of teamIds) {
+    for (const m of hist) {
+      if (!(m.radiant_team_id === id || m.dire_team_id === id)) continue
+      if (m.match_id >= g.match_id) continue
+      const key = (m.series_id ?? 0) > 0 ? `s${m.series_id}` : `m${m.match_id}`
+      if (!seriesMap.has(key)) seriesMap.set(key, [])
+      const arr = seriesMap.get(key)
+      if (!arr.some((x) => x.match_id === m.match_id)) arr.push(m)
+    }
+  }
+
+  let best = []
+  for (const [, matches] of seriesMap) {
+    if (matches.length > total) continue // too many — different series
+    if (matches.length > best.length) best = matches
+  }
+  return best.sort((a, b) => a.match_id - b.match_id)
+}
+
 // Fetches completed maps for a live in-progress series game.
 async function fetchCompletedMaps(g) {
   const totalCompleted = (g.radiant_series_wins ?? 0) + (g.dire_series_wins ?? 0)
@@ -103,25 +213,25 @@ async function fetchCompletedMaps(g) {
 
   const hist = await steamFetch('/IDOTA2Match_570/GetMatchHistory/v1/', {
     league_id: g.league_id,
-    matches_requested: 25,
+    matches_requested: 50,
   }).then((j) => j?.result?.matches ?? []).catch(() => [])
 
-  let candidates = []
-  if ((g.series_id ?? 0) > 0) {
-    candidates = hist.filter((m) => m.series_id === g.series_id)
-  } else {
-    const radId = g.radiant_team?.team_id
-    const direId = g.dire_team?.team_id
-    if (radId && direId) {
-      candidates = hist.filter(
-        (m) =>
-          (m.radiant_team_id === radId && m.dire_team_id === direId) ||
-          (m.radiant_team_id === direId && m.dire_team_id === radId),
-      )
-    }
-  }
+  const candidates = findSeriesCandidates(g, hist)
+  for (const m of candidates) if (m.series_id) _liveSeriesIds.add(m.series_id)
 
-  candidates = candidates.sort((a, b) => a.match_id - b.match_id).slice(0, totalCompleted)
+  // History not indexed yet (Steam has a delay) — return placeholder slots so
+  // the tab bar still renders with the correct map count.
+  if (candidates.length === 0) {
+    return Array.from({ length: totalCompleted }, (_, i) => ({
+      map_number: i + 1,
+      match_id: null,
+      match_seq_num: null,
+      radiant_score: null,
+      dire_score: null,
+      duration: null,
+      radiant_win: null,
+    }))
+  }
 
   const details = await mapLimit(candidates, 3, (m) =>
     fetchMatchBySeq(m.match_seq_num).catch(() => null),
@@ -129,6 +239,10 @@ async function fetchCompletedMaps(g) {
 
   return candidates.map((m, i) => {
     const d = details[i]
+    const players = (d?.players ?? []).map((p) => ({
+      hero_id: p.hero_id,
+      team: p.player_slot < 128 ? 0 : 1,
+    }))
     return {
       map_number: i + 1,
       match_id: d?.match_id ?? m.match_id ?? null,
@@ -137,6 +251,7 @@ async function fetchCompletedMaps(g) {
       dire_score: d?.dire_score ?? null,
       duration: d?.duration ?? null,
       radiant_win: d != null ? d.radiant_win : null,
+      players,
     }
   })
 }
@@ -148,8 +263,24 @@ export async function mapLive(json) {
   // Drop Chinese-language leagues.
   const games = all.filter((g) => !hasCJK(label(g.league_id)))
 
-  // Fetch completed series maps for in-progress series in parallel.
-  const seriesMapsArr = await Promise.all(games.map((g) => fetchCompletedMaps(g)))
+  // Fetch completed series maps and resolve team logo URLs in parallel.
+  const [seriesMapsArr, teamLogos] = await Promise.all([
+    Promise.all(games.map((g) => fetchCompletedMaps(g))),
+    Promise.all(
+      games.map((g) =>
+        Promise.all([
+          resolveTeamLogo(g.radiant_team?.team_logo).then((url) => {
+            if (g.radiant_team?.team_id > 0) teamInfoCache.set(g.radiant_team.team_id, url)
+            return url
+          }),
+          resolveTeamLogo(g.dire_team?.team_logo).then((url) => {
+            if (g.dire_team?.team_id > 0) teamInfoCache.set(g.dire_team.team_id, url)
+            return url
+          }),
+        ]),
+      ),
+    ),
+  ])
 
   return games.map((g, i) => {
     const players = (g.players ?? [])
@@ -177,6 +308,8 @@ export async function mapLive(json) {
       team_name_dire: g.dire_team?.team_name ?? null,
       team_id_radiant: g.radiant_team?.team_id ?? 0,
       team_id_dire: g.dire_team?.team_id ?? 0,
+      team_logo_radiant: teamLogos[i][0] ?? null,
+      team_logo_dire: teamLogos[i][1] ?? null,
       players,
       radiant_series_wins: g.radiant_series_wins ?? 0,
       dire_series_wins: g.dire_series_wins ?? 0,
@@ -266,7 +399,7 @@ export async function mapMatchDetail(r) {
 
 // --- Past pro matches --------------------------------------------------------
 
-function detailToProMatch(r, label) {
+function detailToProMatch(r, label, logoMap = {}) {
   return {
     match_id: r.match_id,
     match_seq_num: r.match_seq_num, // detail is fetched by seq (GetMatchDetails is down)
@@ -278,10 +411,16 @@ function detailToProMatch(r, label) {
     dire_name: r.dire_name ?? null,
     radiant_team_id: r.radiant_team_id ?? null,
     dire_team_id: r.dire_team_id ?? null,
+    team_logo_radiant: logoMap[r.radiant_team_id] ?? null,
+    team_logo_dire: logoMap[r.dire_team_id] ?? null,
     league_name: label(r.leagueid),
     radiant_score: r.radiant_score,
     dire_score: r.dire_score,
     radiant_win: r.radiant_win,
+    players: (r.players ?? []).map((p) => ({
+      hero_id: p.hero_id,
+      team: p.player_slot < 128 ? 0 : 1,
+    })),
   }
 }
 
@@ -364,9 +503,16 @@ export async function mapProMatches(leagueIds) {
     return false
   }
 
-  return details
-    .filter((r) => r && !r.error && !isOngoingSeries(r))
-    .map((r) => detailToProMatch(r, label))
+  const filtered = details.filter((r) => r && !r.error && !isOngoingSeries(r))
+
+  // Resolve team logos for all unique team ids. teamInfoCache is pre-warmed by
+  // any concurrent /live call; misses fall through to GetTeamInfoByTeamID.
+  const teamIds = [...new Set(filtered.flatMap((r) => [r.radiant_team_id, r.dire_team_id].filter(Boolean)))]
+  const logoUrls = await Promise.all(teamIds.map(resolveTeamLogoById))
+  const logoMap = Object.fromEntries(teamIds.map((id, i) => [id, logoUrls[i]]))
+
+  return filtered
+    .map((r) => detailToProMatch(r, label, logoMap))
     .sort((a, b) => b.start_time - a.start_time)
 }
 
