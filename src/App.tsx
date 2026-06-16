@@ -30,7 +30,7 @@ function App() {
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-5 px-4 pb-16 pt-5">
       <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <Logo className="h-24 w-24 rounded-xl" />
+          <Logo className="h-35 w-35 rounded-xl" />
           <div className="leading-none">
             <h1 className="text-[22px] font-bold tracking-tight">
               Spot<span className="text-dota-bright">Dota</span>

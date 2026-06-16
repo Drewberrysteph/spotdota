@@ -78,6 +78,13 @@ export const datafeedFetch = (path) => getJson(`https://www.dota2.com/datafeed/$
 export const leagueDataFetch = (leagueId) =>
   getJson(`https://www.dota2.com/webapi/IDOTA2DPC/GetLeagueData/v001/?league_id=${leagueId}`)
 
+// OpenDota's parsed match data, keyed by match_id (not seq). The only source for
+// a per-minute net-worth (gold advantage) timeline - Steam's WebAPI exposes none.
+// Best-effort: only parsed matches carry radiant_gold_adv, and OpenDota rate-
+// limits the free tier, so callers treat any miss as "no graph".
+export const openDotaMatch = (matchId) =>
+  getJson(`https://api.opendota.com/api/matches/${matchId}`)
+
 // 32-bit Dota account_id -> 64-bit Steam id (for GetPlayerSummaries).
 const STEAMID64_BASE = 76561197960265728n
 export const toSteamId64 = (accountId) => (BigInt(accountId) + STEAMID64_BASE).toString()

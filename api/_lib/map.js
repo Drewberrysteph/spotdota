@@ -5,6 +5,7 @@
 import {
   steamFetch,
   leagueDataFetch,
+  openDotaMatch,
   toSteamId64,
   toAccountId,
   ANON_ACCOUNT_ID,
@@ -352,8 +353,18 @@ export async function mapMatchDetail(r) {
     throw err
   }
 
-  const names = await personaNames(r.players ?? [])
-  const leagueName = r.leagueid ? await resolveLeagueName(r.leagueid) : null
+  // Persona names, league name, and the OpenDota gold-advantage timeline run in
+  // parallel. The timeline is best-effort (null when the match isn't parsed yet
+  // or OpenDota is rate-limited); the graph just hides itself when it's null.
+  const [names, leagueName, goldAdv] = await Promise.all([
+    personaNames(r.players ?? []),
+    r.leagueid ? resolveLeagueName(r.leagueid) : Promise.resolve(null),
+    r.match_id
+      ? openDotaMatch(r.match_id)
+          .then((m) => (Array.isArray(m?.radiant_gold_adv) ? m.radiant_gold_adv : null))
+          .catch(() => null)
+      : Promise.resolve(null),
+  ])
 
   const players = (r.players ?? []).map((p) => {
     const accountId = realAccountId(p.account_id)
@@ -391,7 +402,7 @@ export async function mapMatchDetail(r) {
     dire_name: r.dire_name ?? null,
     radiant_team_id: r.radiant_team_id ?? null,
     dire_team_id: r.dire_team_id ?? null,
-    radiant_gold_adv: null, // GetMatchDetails has no per-minute gold timeline
+    radiant_gold_adv: goldAdv, // per-minute net-worth lead, from OpenDota
     league: r.leagueid ? { name: leagueName } : null,
     players,
   }
